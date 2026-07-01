@@ -1,0 +1,24 @@
+{
+  "name": "sm-campanas-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Planeación 2 Campañas SM — simulador, Gantt, streamgraph y documentos del nuevo modelo de campaña 2026-2027.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "recharts": "^2.12.7",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}
