@@ -2,11 +2,16 @@ import { useMemo, useState, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from 'recharts'
-import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model.js'
+import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model'
+import type { Curves, Defaults, ComputeKpis } from '../data/model'
 
 const SMART = '#2563B0', CORE = '#2C8A7B', BLUE = '#1F5AA6', BLUEL = '#9BBFE8', GOLD = '#B5841C'
 
-function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
+interface NumProps {
+  label: string; unit?: string; value: number; onChange: (v: number) => void;
+  step?: number; min?: number; max?: number;
+}
+function Num({ label, unit, value, onChange, step = 1, min = 0, max }: NumProps) {
   return (
     <div className="fld">
       <label>{label} {unit && <span className="u">{unit}</span>}</label>
@@ -16,7 +21,10 @@ function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
   )
 }
 
-function RetConq({ label, value, retColor, conqColor, onChange }) {
+interface RetConqProps {
+  label: string; value: number; retColor: string; conqColor: string; onChange: (v: number) => void;
+}
+function RetConq({ label, value, retColor, conqColor, onChange }: RetConqProps) {
   return (
     <div className="retconq">
       <div className="retconq-head">
@@ -35,26 +43,28 @@ function RetConq({ label, value, retColor, conqColor, onChange }) {
   )
 }
 
+interface Scenarios { A: ComputeKpis | null; B: ComputeKpis | null }
+
 export default function Simulador() {
-  const [n, setN] = useState({ ...DEFAULTS })
-  const [curves, setCurves] = useState(() => JSON.parse(JSON.stringify(DEF_CURVES)))
+  const [n, setN] = useState<Defaults>({ ...DEFAULTS })
+  const [curves, setCurves] = useState<Curves>(() => JSON.parse(JSON.stringify(DEF_CURVES)))
   const [shapes, setShapes] = useState(() => STREAMS.map((s) => ({ focal: s.focal, spread: s.spread })))
   const [intens, setIntens] = useState(1)
   const [linked, setLinked] = useState(true)
-  const [scen, setScen] = useState(() => {
-    try { const r = localStorage.getItem('sm-sim-scen-v1'); if (r) return JSON.parse(r) } catch (e) { /* noop */ }
+  const [scen, setScen] = useState<Scenarios>(() => {
+    try { const r = localStorage.getItem('sm-sim-scen-v1'); if (r) return JSON.parse(r) } catch { /* noop */ }
     return { A: null, B: null }
   })
-  useEffect(() => { try { localStorage.setItem('sm-sim-scen-v1', JSON.stringify(scen)) } catch (e) { /* noop */ } }, [scen])
+  useEffect(() => { try { localStorage.setItem('sm-sim-scen-v1', JSON.stringify(scen)) } catch { /* noop */ } }, [scen])
 
-  const set = (key, v) => setN((p) => ({ ...p, [key]: v }))
+  const set = (key: keyof Defaults, v: number) => setN((p) => ({ ...p, [key]: v }))
   const { rows, k } = useMemo(() => compute({ ...n, curves }), [n, curves])
 
-  const applyIntensity = (f) => {
+  const applyIntensity = (f: number) => {
     setIntens(f); setLinked(true)
     setN((p) => ({ ...p, tUso: Math.round(1 + 2 * f), tProf: Math.round(2 + 1 * f), tAdic: 1 }))
   }
-  const setShape = (i, field, v) => {
+  const setShape = (i: number, field: 'focal' | 'spread', v: number) => {
     const ns = shapes.map((s, j) => j === i ? { ...s, [field]: v } : s)
     setShapes(ns)
     const st = STREAMS[i]
@@ -64,7 +74,7 @@ export default function Simulador() {
     setN({ ...DEFAULTS }); setCurves(JSON.parse(JSON.stringify(DEF_CURVES)))
     setShapes(STREAMS.map((s) => ({ focal: s.focal, spread: s.spread }))); setIntens(1); setLinked(true)
   }
-  const saveScen = (slot) => setScen((p) => ({ ...p, [slot]: { ...k } }))
+  const saveScen = (slot: 'A' | 'B') => setScen((p) => ({ ...p, [slot]: { ...k } }))
   const exportCSV = () => {
     let csv = 'Mes,SMART,CORE,Total,Uso+Prof,Cubierto empl,Ext uso-prof,Didacticas ext,Total ext,Retencion,Conquista\n'
     rows.forEach((x) => { csv += [x.m, R(x.smart), R(x.core), R(x.smart + x.core), R(x.up), R(x.cov), R(x.extUP), R(x.adicExt), R(x.totExt), R(x.ret), R(x.conq)].join(',') + '\n' })
@@ -72,7 +82,7 @@ export default function Simulador() {
     a.download = 'coberturas_asesores.csv'; a.click()
   }
 
-  const kpis = [
+  const kpis: [string, string | number, string][] = [
     ['Talleres totales', R(k.totalT), ''],
     ['Mes pico (total)', `${k.peak.m} · ${R(k.peak.smart + k.peak.core)}`, ''],
     ['Externos · mes pico', `${k.extPeak.m} · ${R(k.extPeak.totExt)}`, 'warn'],
@@ -83,7 +93,7 @@ export default function Simulador() {
     ['% conquista', `${R(k.pctConq * 100)}%`, 'good'],
     ['Conquista · mes pico', `${k.conqPeak.m} · ${R(k.conqPeak.conq)}`, 'good'],
   ]
-  const cmpRows = [
+  const cmpRows: [string, (x: ComputeKpis) => string | number][] = [
     ['Talleres totales', (x) => R(x.totalT)],
     ['Externos · pico', (x) => `${R(x.extPeak.totExt)} (${x.extPeak.m})`],
     ['Cabezas externas pico', (x) => x.cabExtPico],
@@ -103,7 +113,7 @@ export default function Simulador() {
           <div className="panel">
             <h3>Escenario</h3>
             <div className="seg">
-              {[['Conservador', 0], ['Base', 0.5], ['Techo', 1]].map(([lbl, f]) => (
+              {([['Conservador', 0], ['Base', 0.5], ['Techo', 1]] as [string, number][]).map(([lbl, f]) => (
                 <button key={lbl} className={Math.abs(intens - f) < 0.001 && linked ? 'on' : ''} onClick={() => applyIntensity(f)}>{lbl}</button>
               ))}
             </div>
@@ -188,7 +198,7 @@ export default function Simulador() {
             <ResponsiveContainer width="100%" height={230}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
+                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(Number(v))} /><Legend />
                 <Bar dataKey="smart" name="SMART" stackId="a" fill={SMART} />
                 <Bar dataKey="core" name="CORE" stackId="a" fill={CORE} />
               </BarChart>
@@ -200,7 +210,7 @@ export default function Simulador() {
             <ResponsiveContainer width="100%" height={230}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
+                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(Number(v))} /><Legend />
                 <Bar dataKey="cov" name="Empleados (uso/prof)" stackId="b" fill={BLUE} />
                 <Bar dataKey="extUP" name="Externos uso/prof" stackId="b" fill="rgba(37,99,176,.4)" />
                 <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={CORE} />
@@ -220,7 +230,7 @@ export default function Simulador() {
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v, n) => [R(v), n]} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v, n) => [R(Number(v)), n]} /><Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="retSmart" name="SMART · retención" stackId="c" fill={BLUEL} />
                 <Bar dataKey="conqSmart" name="SMART · conquista" stackId="c" fill={SMART} />
                 <Bar dataKey="retCore" name="CORE · retención" stackId="c" fill="#A0CAC4" />

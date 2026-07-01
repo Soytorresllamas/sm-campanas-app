@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import logoSM from './assets/logo-sm.svg'
 
 // Gate ligero del lado del cliente (hash SHA-256). No es seguridad fuerte: al ser un sitio
@@ -9,12 +9,12 @@ import logoSM from './assets/logo-sm.svg'
 const PASS_HASH = '99f8cbcd66a958fbe5edc089f38b5291ea155873a51177daeed297ee8715e088'
 const FLAG = 'sm-campanas-unlocked-v1'
 
-async function sha256(text) {
+async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export default function Gate({ children }) {
+export default function Gate({ children }: { children: ReactNode }) {
   const [ok, setOk] = useState(() => localStorage.getItem(FLAG) === '1')
   const [pw, setPw] = useState('')
   const [err, setErr] = useState(false)
@@ -22,7 +22,7 @@ export default function Gate({ children }) {
 
   if (ok) return children
 
-  const submit = async (e) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true); setErr(false)
     const h = await sha256(pw)

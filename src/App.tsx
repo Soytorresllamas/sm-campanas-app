@@ -2,10 +2,10 @@ import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import logoSM from './assets/logo-sm.svg'
 
-const Simulador = lazy(() => import('./pages/Simulador.jsx'))
-const GanttMarketing = lazy(() => import('./pages/GanttMarketing.jsx'))
-const Streamgraph = lazy(() => import('./pages/Streamgraph.jsx'))
-const Documentos = lazy(() => import('./pages/Documentos.jsx'))
+const Simulador = lazy(() => import('./pages/Simulador.tsx'))
+const GanttMarketing = lazy(() => import('./pages/GanttMarketing.tsx'))
+const Streamgraph = lazy(() => import('./pages/Streamgraph.tsx'))
+const Documentos = lazy(() => import('./pages/Documentos.tsx'))
 
 export default function App() {
   return (
