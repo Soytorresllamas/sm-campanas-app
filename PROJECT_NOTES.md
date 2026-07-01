@@ -58,7 +58,7 @@ Antes era un solo componente de ~500 líneas; ahora está partido en:
 - `dateUtils.ts` — helpers de fecha (`parse`, `toISO`, `diffDays`, `fmtShort`).
 - `seed.ts` — plan sembrado (42 acciones + 3 hitos + 12 dependencias) convertido a fechas reales desde Sep 2026.
 - `useHistory.ts` — deshacer genérico (snapshots JSON en un ref; `historySize` es el único estado real, para que la UI pueda mostrar "¿hay algo que deshacer?" sin leer el ref durante el render).
-- `useTasks.ts` — estado de tareas + sincronización (local instantánea + Supabase con debounce de 700ms) + todas las mutaciones (patch/del/addTask/addDep/removeDep/importJSON/exportCSV/exportJSON/reset).
+- `useTasks.ts` — estado de tareas **+ catálogos editables de `modules` y `owners`** + sincronización (local instantánea + Supabase con debounce de 700ms) + todas las mutaciones (patch/del/addTask/addDep/removeDep/importJSON/exportCSV/exportJSON/reset/renameModule/addModule/addOwner).
 - `useGanttLayout.ts` — dominio de fechas, meses del header, grupos, geometría de barras, flechas de dependencia.
 - `useDragResize.ts` — arrastre con Pointer Events **y navegación equivalente por teclado** (ver Accesibilidad).
 - `GanttToolbar.tsx`, `GanttRow.tsx`, `GanttArrows.tsx`, `TaskEditor.tsx` — componentes de presentación.
@@ -69,6 +69,11 @@ Antes era un solo componente de ~500 líneas; ahora está partido en:
 **Persistencia**: local (`localStorage`) instantáneo + remoto (Supabase) con debounce de 700ms. Al cargar, remoto gana si existe. **Sin manejo de conflictos de edición concurrente** — último guardado gana, sin aviso.
 
 **Deshacer**: historial en memoria (ref, hasta 60 pasos) + `historySize` en estado, Ctrl/⌘+Z. Se pierde al recargar (no es un requisito, es una limitación conocida).
+
+**Módulos y responsables editables**: `constants.ts` (`MODULES`, `OWNERS`) ya solo son la semilla por defecto — el catálogo *vivo* es el estado `modules`/`owners` de `useTasks.ts`, persistido junto con `tasks` en el mismo payload (`GanttData` en `lib/ganttStore.ts`: `{tasks, modules, owners}`). En el editor lateral (`TaskEditor.tsx`):
+- **Módulo**: select con "+ Nuevo módulo…" (lo agrega al catálogo y lo asigna a la tarea) y un enlace "✎ renombrar" que cambia el nombre para **todas** las tareas de ese módulo, no solo la seleccionada.
+- **Responsable**: select con "+ Nuevo responsable…" (se agrega al catálogo, queda disponible para cualquier tarea futura).
+- `loadLocal()`/`loadRemote()` en `ganttStore.ts` son compatibles con el formato viejo (arreglo plano de tareas, sin `modules`/`owners`) para no romper tableros guardados antes de este cambio.
 
 ## Accesibilidad del Gantt (teclado)
 

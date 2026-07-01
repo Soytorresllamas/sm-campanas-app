@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { Task, GanttGroup, ArrowGeom, TrackKey, StatusKey, GroupBy, Zoom } from './types';
-import { TRACKS, MODULES, PPD, HEAD_H, GROUP_H, ROW_H } from './constants';
+import { TRACKS, PPD, HEAD_H, GROUP_H, ROW_H } from './constants';
 import { MS, MES, diffDays, parse } from './dateUtils';
 
 export interface GanttMonth { ms: number; days: number; label: string; year: number }
@@ -14,6 +14,8 @@ export interface GanttFilters {
   statusF: Set<StatusKey>;
   collapsed: Set<string>;
   depsOn: boolean;
+  /** Catálogo vivo de módulos (editable), en el orden en que deben agruparse. */
+  modules: string[];
 }
 
 const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -56,7 +58,7 @@ export function useGanttLayout(tasks: Task[], f: GanttFilters) {
   }), [tasks, f.trackF, f.statusF, q]);
 
   const groups = useMemo((): GanttGroup[] => {
-    const keys = f.groupBy === 'module' ? MODULES : (['S', 'C', 'T'] as TrackKey[]);
+    const keys = f.groupBy === 'module' ? f.modules : (['S', 'C', 'T'] as TrackKey[]);
     return keys.map((k) => {
       const items = visible.filter((t) => (f.groupBy === 'module' ? t.module : t.track) === k)
         .sort((a, b) => parse(a.start) - parse(b.start));
@@ -65,7 +67,7 @@ export function useGanttLayout(tasks: Task[], f: GanttFilters) {
       const color = f.groupBy === 'module' ? '#3C4049' : TRACKS[k as TrackKey].hex;
       return { key: k, label, color, items };
     }).filter((g): g is GanttGroup => g !== null);
-  }, [visible, f.groupBy]);
+  }, [visible, f.groupBy, f.modules]);
 
   // geometría de cada barra visible, para trazar las flechas de dependencia
   const layout = useMemo(() => {

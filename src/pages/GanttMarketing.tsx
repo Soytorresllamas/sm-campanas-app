@@ -12,8 +12,9 @@ import { TaskEditor } from '../features/gantt/TaskEditor';
 
 export default function GanttMarketing() {
   const {
-    tasks, setTasks, sync, historySize, pushHistory, discardLast, undo,
+    tasks, setTasks, modules, owners, sync, historySize, pushHistory, discardLast, undo,
     patch, del, addTask, addDep, removeDep, importJSON, exportCSV, exportJSON, reset,
+    renameModule, addModule, addOwner,
   } = useTasks();
 
   const [groupBy, setGroupBy] = useState<GroupBy>('module');
@@ -26,7 +27,7 @@ export default function GanttMarketing() {
   const [depsOn, setDepsOn] = useState(true);
 
   const { ppd, timelineW, x, months, groups, layout, arrows, allCollapsed } = useGanttLayout(tasks, {
-    groupBy, zoom, query, trackF, statusF, collapsed, depsOn,
+    groupBy, zoom, query, trackF, statusF, collapsed, depsOn, modules,
   });
 
   const { startDrag, clickBar, onBarKeyDown } = useDragResize({ setTasks, pushHistory, discardLast });
@@ -147,8 +148,9 @@ export default function GanttMarketing() {
       </div>
 
       {sel && (
-        <TaskEditor task={sel} tasks={tasks} onPatch={patch} onClose={() => setSelId(null)}
-          onDelete={(id) => { del(id); setSelId(null); }} onAddDep={addDep} onRemoveDep={removeDep} />
+        <TaskEditor key={sel.id} task={sel} tasks={tasks} modules={modules} owners={owners} onPatch={patch} onClose={() => setSelId(null)}
+          onDelete={(id) => { del(id); setSelId(null); }} onAddDep={addDep} onRemoveDep={removeDep}
+          onRenameModule={renameModule} onAddModule={addModule} onAddOwner={addOwner} />
       )}
     </div>
   );
