@@ -7,6 +7,14 @@ App de apoyo al Comité de Negocios para el nuevo modelo de campaña SM 2026-202
 - **Streamgraph** de perfiles de servicio (uso, profundización, didácticas específicas) para SMART y CORE.
 - **Documentos** del modelo y del plan.
 
+## Ver en línea (GitHub Pages)
+
+- [App completa](https://soytorresllamas.github.io/sm-campanas-app/)
+- [Simulador de coberturas y asesores](https://soytorresllamas.github.io/sm-campanas-app/#/simulador)
+- [Gantt de marketing](https://soytorresllamas.github.io/sm-campanas-app/#/gantt)
+- [Streamgraph de servicios](https://soytorresllamas.github.io/sm-campanas-app/#/servicios)
+- [Documentos del modelo y plan](https://soytorresllamas.github.io/sm-campanas-app/#/documentos)
+
 ## Stack
 
 Vite + React (JavaScript) · Recharts · react-router-dom · react-markdown.
