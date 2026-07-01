@@ -69,7 +69,7 @@ export default function Streamgraph() {
       <h1>Perfiles de servicio académico · 26-27</h1>
       <div className="sub">SMART fluye <b>uso → profundización → didácticas específicas</b> (oct-feb). CORE entra por
         <b> didácticas específicas</b> en primavera 2027 y pasa a uso y profundización en el verano. El total de cada
-        banda es el volumen real de colegios; tono intenso = SMART, tono claro = CORE.</div>
+        banda es el volumen real de colegios; <b>azul = SMART</b>, <b>verde = CORE</b> (variantes por tipo de servicio).</div>
 
       <div className="ledger-wrap">
         <Ledger camp="SMART" subtotal={totSmart} />

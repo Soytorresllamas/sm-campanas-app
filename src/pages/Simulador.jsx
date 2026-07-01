@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model.js'
 
-const SMART = '#E40521', CORE = '#2C8A7B', BLUE = '#2563B0', BLUEL = '#9DBBDD', GOLD = '#B5841C'
+const SMART = '#2563B0', CORE = '#2C8A7B', BLUE = '#1F5AA6', BLUEL = '#9BBFE8', GOLD = '#B5841C'
 
 function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
   return (
@@ -228,7 +228,7 @@ export default function Simulador() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="hint">Barras apiladas por mes: SMART (retención azul claro · conquista rojo) y CORE (retención verde claro · conquista verde). Ajusta las proporciones en el panel «Retención vs conquista».</div>
+          <div className="hint">Barras apiladas por mes: SMART (retención azul claro · conquista azul) y CORE (retención verde claro · conquista verde). Ajusta las proporciones en el panel «Retención vs conquista».</div>
 
           {(scen.A || scen.B) && (
             <>

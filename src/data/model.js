@@ -19,13 +19,14 @@ export const DEF_CURVES = {
 // Los 4 primeros (`src`) comparten curva mensual con el Simulador (DEF_CURVES) para que
 // el streamgraph y el simulador no puedan divergir. Los 2 de CORE (uso/prof) son
 // aguas abajo (adopción en verano 2027), fuera del alcance operativo del simulador.
+// SMART = familia azul (variantes por tipo de servicio) · CORE = familia teal (variantes).
 export const SERVICE_PROFILES = [
-  { k: "Su", camp: "SMART", name: "Uso",                 vol: 458,  fill: "#E40521", src: "uso" },
-  { k: "Sp", camp: "SMART", name: "Profundización",      vol: 321,  fill: "#2C8A7B", src: "prof" },
-  { k: "Sd", camp: "SMART", name: "Didácticas específ.", vol: 160,  fill: "#B5841C", src: "adicS" },
-  { k: "Cd", camp: "CORE",  name: "Didácticas específ.", vol: 1745, fill: "#DEC899", src: "adicC" },
-  { k: "Cu", camp: "CORE",  name: "Uso",                 vol: 1047, fill: "#F38F9B", curve: [0,0,0,0,0,0,0,.02,.06,.14,.24,.26,.18,.10] },
-  { k: "Cp", camp: "CORE",  name: "Profundización",      vol: 733,  fill: "#A0CAC4", curve: [0,0,0,0,0,0,0,0,.02,.06,.12,.22,.30,.28] },
+  { k: "Su", camp: "SMART", name: "Uso",                 vol: 458,  fill: "#1F5AA6", src: "uso" },
+  { k: "Sp", camp: "SMART", name: "Profundización",      vol: 321,  fill: "#4A82C4", src: "prof" },
+  { k: "Sd", camp: "SMART", name: "Didácticas específ.", vol: 160,  fill: "#9BBFE8", src: "adicS" },
+  { k: "Cd", camp: "CORE",  name: "Didácticas específ.", vol: 1745, fill: "#2C8A7B", src: "adicC" },
+  { k: "Cu", camp: "CORE",  name: "Uso",                 vol: 1047, fill: "#63AE9D", curve: [0,0,0,0,0,0,0,.02,.06,.14,.24,.26,.18,.10] },
+  { k: "Cp", camp: "CORE",  name: "Profundización",      vol: 733,  fill: "#AAD0C8", curve: [0,0,0,0,0,0,0,0,.02,.06,.12,.22,.30,.28] },
 ];
 const volOf = (k) => SERVICE_PROFILES.find((p) => p.k === k).vol;
 

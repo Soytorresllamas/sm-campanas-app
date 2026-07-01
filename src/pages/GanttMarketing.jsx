@@ -9,7 +9,7 @@ const diffDays = (a, b) => Math.round((b - a) / MS)
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const fmtShort = (ms) => { const d = new Date(ms); return `${d.getUTCDate()} ${MES[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}` }
 
-const TRACKS = { S: { label: 'SMART', hex: '#E40521' }, C: { label: 'CORE', hex: '#2C8A7B' }, T: { label: 'Transversal', hex: '#8C92A0' } }
+const TRACKS = { S: { label: 'SMART', hex: '#2563B0' }, C: { label: 'CORE', hex: '#2C8A7B' }, T: { label: 'Transversal', hex: '#8C92A0' } }
 const STATUS = {
   todo: { label: 'Por hacer', hex: '#9AA0AB' }, doing: { label: 'En curso', hex: '#2563B0' },
   done: { label: 'Hecho', hex: '#157A38' }, review: { label: 'Revisar', hex: '#B5841C' }, risk: { label: 'En riesgo', hex: '#BE1409' },
