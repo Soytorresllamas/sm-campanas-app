@@ -156,6 +156,11 @@ body.g-dragging,body.g-dragging .g-bar{cursor:grabbing !important;}
 .g-fld-row{display:flex;gap:9px;flex-wrap:wrap;}
 .g-fld-row .g-fld{flex:1;min-width:120px;}
 .g-fld-check{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);}
+.g-deps{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px;}
+.g-depchip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:400;background:var(--panel-bg);border:1px solid var(--line-2);border-radius:14px;padding:3px 5px 3px 9px;color:var(--ink-2);max-width:100%;}
+.g-depchip button{background:none;border:0;color:var(--mut);cursor:pointer;font-size:11px;line-height:1;padding:0 2px;}
+.g-depchip button:hover{color:var(--neg);}
+.g-arrows path{transition:opacity .12s var(--ease);}
 .g-del{margin-top:6px;background:var(--neg-wash);color:var(--neg);border:1px solid #F3C9C4;border-radius:8px;padding:9px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;}
 .md{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 24px;font-size:14px;line-height:1.6;}
 .md h1{font-size:24px;} .md h2{font-size:18px;margin-top:22px;font-style:normal;} .md h3{font-size:14px;font-family:inherit;font-style:normal;font-weight:700;}

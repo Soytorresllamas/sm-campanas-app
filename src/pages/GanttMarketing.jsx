@@ -81,17 +81,34 @@ const SEEDSTATE = {
   'Arquitectura de mensajes por etapa': { status: 'doing', progress: 25 },
   'Kit de demo de uso (asesor pedagógico)': { status: 'doing', progress: 10 },
 }
+// Dependencias sembradas (tarea → predecesoras por nombre). 100% editables en la herramienta.
+const DEPS = {
+  'Scoring de propensión por colegio': ['Limpieza y unificación del CSV nominal'],
+  'ICP y persona de compra por bloque': ['Scoring de propensión por colegio'],
+  'Lista 1,302 «Sin actividad» con competencia': ['Scoring de propensión por colegio'],
+  'Tablero de segmentos y asignación a comercial': ['ICP y persona de compra por bloque', 'Lista 1,302 «Sin actividad» con competencia'],
+  'ABM 1:1 a cuentas de alto valor': ['Tablero de segmentos y asignación a comercial', 'Arquitectura de mensajes por etapa'],
+  'Conversión con casos y prueba social': ['ABM 1:1 a cuentas de alto valor'],
+  'Facilitación de decisión y cotización': ['Conversión con casos y prueba social'],
+  'Cross-sell de didácticas a base cerrada': ['Renovación y retención de la base (94%)'],
+  'Secuencias de nurturing por score': ['Lead-gen: webinars y contenido descargable'],
+  'Cierre de contrato de didácticas': ['Secuencias de nurturing por score'],
+  'Dashboard de KPIs vs metas': ['Atribución por bloque y campaña'],
+  'Lecciones y recalibración de tasas': ['Dashboard de KPIs vs metas'],
+}
 const buildSeed = () => {
   const tasks = PLAN.map(([module, name, s, e, track, soft], i) => ({
     id: 't' + i, module, name, detail: '', track, soft,
     start: monStart(s), end: monEnd(e),
     owner: ownerFor(track), status: SEEDSTATE[name]?.status || 'todo',
-    progress: SEEDSTATE[name]?.progress || 0, milestone: false,
+    progress: SEEDSTATE[name]?.progress || 0, milestone: false, dependsOn: [],
   }))
-  const mile = (id, name, module, track, date) => ({ id, name, detail: '', module, track, soft: false, start: date, end: date, owner: 'Dirección', status: 'todo', progress: 0, milestone: true })
+  const mile = (id, name, module, track, date) => ({ id, name, detail: '', module, track, soft: false, start: date, end: date, owner: 'Dirección', status: 'todo', progress: 0, milestone: true, dependsOn: [] })
   tasks.push(mile('m1', '◆ Convención Comercial (Kick-off)', '1 · SMART · Activación temprana', 'S', '2026-09-08'))
   tasks.push(mile('m2', '◆ Tope SMART (cierre feb)', '2 · SMART · Cierre', 'S', '2027-02-28'))
   tasks.push(mile('m3', '◆ Auditoría de resultados', '7 · Medición y cierre auditado', 'T', '2027-09-15'))
+  const idByName = Object.fromEntries(tasks.map((t) => [t.name, t.id]))
+  tasks.forEach((t) => { const pre = DEPS[t.name]; if (pre) t.dependsOn = pre.map((n) => idByName[n]).filter(Boolean) })
   return tasks
 }
 
@@ -112,6 +129,7 @@ export default function GanttMarketing() {
   const [collapsed, setCollapsed] = useState(() => new Set())
   const [selId, setSelId] = useState(null)
   const [sync, setSync] = useState('loading')
+  const [depsOn, setDepsOn] = useState(true)
 
   const tasksRef = useRef(tasks); tasksRef.current = tasks
   const ready = useRef(false); const skipSave = useRef(false); const saveTimer = useRef(null)
@@ -204,6 +222,36 @@ export default function GanttMarketing() {
     return { total, doing, hitos, avance: wden ? Math.round(wsum / wden) : 0 }
   }, [tasks])
 
+  const HEAD_H = 40, GROUP_H = 30, ROW_H = 30
+  // geometría de cada barra visible, para trazar las flechas de dependencia
+  const layout = useMemo(() => {
+    const map = {}; let y = HEAD_H
+    groups.forEach((g) => {
+      y += GROUP_H
+      if (collapsed.has(g.key)) return
+      g.items.forEach((t) => {
+        const s = parse(t.start), e = parse(t.end), cy = y + ROW_H / 2
+        if (t.milestone) { const mx = x(s); map[t.id] = { sx: mx - 8, ex: mx + 8, cy, s, e } }
+        else { const left = x(s), w = Math.max((diffDays(s, e) + 1) * ppd, 8); map[t.id] = { sx: left, ex: left + w, cy, s, e } }
+        y += ROW_H
+      })
+    })
+    return { map, height: y }
+  }, [groups, collapsed, x, ppd])
+
+  const arrows = useMemo(() => {
+    if (!depsOn) return []
+    const out = []
+    groups.forEach((g) => { if (collapsed.has(g.key)) return; g.items.forEach((t) => {
+      const b = layout.map[t.id]; if (!b || !Array.isArray(t.dependsOn)) return
+      t.dependsOn.forEach((pid) => {
+        const a = layout.map[pid]; if (!a) return
+        out.push({ key: pid + '>' + t.id, x1: a.ex, y1: a.cy, x2: b.sx, y2: b.cy, conflict: b.s < a.s })
+      })
+    }) })
+    return out
+  }, [depsOn, groups, collapsed, layout])
+
   /* ----- drag ----- */
   const drag = useRef(null); const moved = useRef(false)
   const onMove = useCallback((e) => {
@@ -236,14 +284,24 @@ export default function GanttMarketing() {
 
   /* ----- mutaciones ----- */
   const patch = (next) => setTasks((ts) => ts.map((t) => t.id === next.id ? next : t))
-  const del = (id) => { pushHistory(); setTasks((ts) => ts.filter((t) => t.id !== id)); setSelId(null) }
+  const del = (id) => { pushHistory(); setTasks((ts) => ts.filter((t) => t.id !== id).map((t) => Array.isArray(t.dependsOn) && t.dependsOn.includes(id) ? { ...t, dependsOn: t.dependsOn.filter((d) => d !== id) } : t)); setSelId(null) }
   const addTask = () => {
     pushHistory()
     const id = 'u' + Date.now().toString(36)
     const start = Date.UTC(2026, 8, 1)
-    const nt = { id, module: MODULES[0], name: 'Nueva acción', detail: '', track: 'T', soft: false, start: toISO(start), end: toISO(start + 20 * MS), owner: OWNERS[0], status: 'todo', progress: 0, milestone: false }
+    const nt = { id, module: MODULES[0], name: 'Nueva acción', detail: '', track: 'T', soft: false, start: toISO(start), end: toISO(start + 20 * MS), owner: OWNERS[0], status: 'todo', progress: 0, milestone: false, dependsOn: [] }
     setTasks((ts) => [...ts, nt]); setSelId(id)
   }
+  // dependencias en el editor: evita self y ciclo directo (que la predecesora ya dependa de esta)
+  const addDep = (task, pid) => {
+    if (!pid || pid === task.id) return
+    const pred = tasksRef.current.find((t) => t.id === pid)
+    if (pred && Array.isArray(pred.dependsOn) && pred.dependsOn.includes(task.id)) { window.alert('Eso crearía una dependencia circular.'); return }
+    const cur = Array.isArray(task.dependsOn) ? task.dependsOn : []
+    if (cur.includes(pid)) return
+    patch({ ...task, dependsOn: [...cur, pid] })
+  }
+  const removeDep = (task, pid) => patch({ ...task, dependsOn: (task.dependsOn || []).filter((d) => d !== pid) })
   const importJSON = (e) => {
     const f = e.target.files?.[0]; if (!f) return
     const r = new FileReader()
@@ -306,6 +364,9 @@ export default function GanttMarketing() {
             <span className="g-dot" style={{ background: TRACKS[t].hex }} />{TRACKS[t].label}
           </label>
         ))}
+        <label className="g-chk" style={{ borderColor: depsOn ? '#8C92A0' : 'var(--line-2)' }}>
+          <input type="checkbox" checked={depsOn} onChange={() => setDepsOn((v) => !v)} />↳ Dependencias
+        </label>
         <button className="sec" onClick={addTask}>+ Acción</button>
         <button className="sec" onClick={undo} disabled={!history.current.length} title="Deshacer (Ctrl/⌘+Z)">↶ Deshacer</button>
         <button className="sec" onClick={exportCSV}>CSV</button>
@@ -338,6 +399,25 @@ export default function GanttMarketing() {
               </div>
             </div>
 
+            {depsOn && arrows.length > 0 && (
+              <svg className="g-arrows" width={timelineW} height={layout.height}
+                style={{ position: 'absolute', top: 0, left: LBL, zIndex: 2, pointerEvents: 'none' }}>
+                <defs>
+                  <marker id="g-ah" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#8C92A0" />
+                  </marker>
+                  <marker id="g-ah-w" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#BE1409" />
+                  </marker>
+                </defs>
+                {arrows.map((a) => (
+                  <path key={a.key} fill="none" markerEnd={`url(#${a.conflict ? 'g-ah-w' : 'g-ah'})`}
+                    d={`M ${a.x1} ${a.y1} C ${a.x1 + 16} ${a.y1}, ${a.x2 - 16} ${a.y2}, ${a.x2} ${a.y2}`}
+                    stroke={a.conflict ? '#BE1409' : '#8C92A0'} strokeWidth={a.conflict ? 1.6 : 1.3}
+                    strokeDasharray={a.conflict ? '4 3' : 'none'} opacity={a.conflict ? 0.95 : 0.65} />
+                ))}
+              </svg>
+            )}
             {groups.map((g) => {
               const col = collapsed.has(g.key)
               return (
@@ -389,7 +469,7 @@ export default function GanttMarketing() {
         {Object.entries(TRACKS).map(([k, v]) => (
           <span key={k}><span className="g-dot" style={{ background: v.hex }} />{v.label}</span>
         ))}
-        <span className="g-legend-hint">Tono translúcido = pendiente · relleno sólido = avance · ◆ hito</span>
+        <span className="g-legend-hint">Tono translúcido = pendiente · relleno sólido = avance · ◆ hito · → dependencia · <b style={{ color: '#BE1409' }}>rojo punteado = conflicto de fechas</b></span>
       </div>
 
       {sel && (
@@ -440,6 +520,22 @@ export default function GanttMarketing() {
               <input type="checkbox" checked={sel.milestone} onChange={(e) => patch({ ...sel, milestone: e.target.checked, end: e.target.checked ? sel.start : sel.end })} />
               Es un hito (fecha única)
             </label>
+            <div className="g-fld">Depende de (predecesoras)
+              {(sel.dependsOn || []).length > 0 && (
+                <div className="g-deps">
+                  {sel.dependsOn.map((pid) => {
+                    const p = tasks.find((t) => t.id === pid)
+                    return <span key={pid} className="g-depchip">{p ? p.name : 'tarea eliminada'}
+                      <button onClick={() => removeDep(sel, pid)} aria-label="Quitar">✕</button></span>
+                  })}
+                </div>
+              )}
+              <select value="" onChange={(e) => { addDep(sel, e.target.value); e.target.value = '' }}>
+                <option value="">+ Añadir predecesora…</option>
+                {tasks.filter((t) => t.id !== sel.id && !(sel.dependsOn || []).includes(t.id))
+                  .map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
             <button className="g-del" onClick={() => del(sel.id)}>Eliminar acción</button>
           </aside>
         </>

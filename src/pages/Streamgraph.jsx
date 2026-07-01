@@ -1,20 +1,23 @@
 import { useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { SERVICE_PROFILES, DEF_CURVES } from '../data/model.js'
 
+// Eje del ciclo. Los meses del modelo (DEF_CURVES: Oct'26..Sep'27) se alinean a los
+// índices 1..12; Sep'26 (0) y Oct'27 (13) quedan fuera de la ventana operativa.
 const AX = ["Sep'26","Oct'26","Nov","Dic","Ene'27","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep'27","Oct'27"]
-
-// Volúmenes reales de colegios por perfil (ciclo 26-27). El total de cada banda
-// = su volumen real; la distribución mensual es una curva ilustrativa y ajustable.
-const PROFILES = [
-  { k: 'Su', name: 'Uso',                 camp: 'SMART', vol: 458,  cen: 2,    sig: 1.6, fill: '#E40521' },
-  { k: 'Sp', name: 'Profundización',      camp: 'SMART', vol: 321,  cen: 4,    sig: 1.6, fill: '#2C8A7B' },
-  { k: 'Sd', name: 'Didácticas específ.', camp: 'SMART', vol: 160,  cen: 6,    sig: 1.4, fill: '#B5841C' },
-  { k: 'Cd', name: 'Didácticas específ.', camp: 'CORE',  vol: 1745, cen: 7.5,  sig: 1.7, fill: '#DEC899' },
-  { k: 'Cu', name: 'Uso',                 camp: 'CORE',  vol: 1047, cen: 10,   sig: 1.5, fill: '#F38F9B' },
-  { k: 'Cp', name: 'Profundización',      camp: 'CORE',  vol: 733,  cen: 11.5, sig: 1.5, fill: '#A0CAC4' },
-]
-const gauss = (i, c, s) => Math.exp(-0.5 * ((i - c) / s) ** 2)
 const fmt = (n) => n.toLocaleString('es-MX')
+
+// Distribución mensual (14 meses) de un perfil, normalizada a su volumen real.
+// - perfil con `src`: usa la MISMA curva mensual del Simulador (una sola fuente de verdad).
+// - perfil con `curve`: curva propia de 14 meses (adopción CORE aguas abajo).
+const bandFor = (p) => {
+  const raw = AX.map((_, i) => {
+    if (p.src) return (i >= 1 && i <= 12) ? (DEF_CURVES[p.src][i - 1] || 0) : 0
+    return p.curve[i] || 0
+  })
+  const s = raw.reduce((a, b) => a + b, 0) || 1
+  return raw.map((w) => Math.round((p.vol * w) / s))
+}
 
 // Marcador de convención posicionado a la derecha de la línea para que no se corte.
 function MarkerLabel({ viewBox, text, color, line = 0 }) {
@@ -28,22 +31,18 @@ function MarkerLabel({ viewBox, text, color, line = 0 }) {
 
 export default function Streamgraph() {
   const { series, data, totSmart, totCore } = useMemo(() => {
-    const series = PROFILES.map((p) => {
-      const raw = AX.map((_, i) => gauss(i, p.cen, p.sig))
-      const s = raw.reduce((a, b) => a + b, 0)
-      return { ...p, monthly: raw.map((w) => Math.round((p.vol * w) / s)) }
-    })
+    const series = SERVICE_PROFILES.map((p) => ({ ...p, monthly: bandFor(p) }))
     const data = AX.map((m, i) => {
       const o = { m }
       series.forEach((p) => { o[p.k] = p.monthly[i] })
       return o
     })
-    const totSmart = PROFILES.filter((p) => p.camp === 'SMART').reduce((a, b) => a + b.vol, 0)
-    const totCore = PROFILES.filter((p) => p.camp === 'CORE').reduce((a, b) => a + b.vol, 0)
+    const totSmart = SERVICE_PROFILES.filter((p) => p.camp === 'SMART').reduce((a, b) => a + b.vol, 0)
+    const totCore = SERVICE_PROFILES.filter((p) => p.camp === 'CORE').reduce((a, b) => a + b.vol, 0)
     return { series, data, totSmart, totCore }
   }, [])
 
-  const maxVol = Math.max(...PROFILES.map((p) => p.vol))
+  const maxVol = Math.max(...SERVICE_PROFILES.map((p) => p.vol))
   const grand = totSmart + totCore
   const byName = Object.fromEntries(series.map((p) => [p.k, p.name]))
 
@@ -100,8 +99,9 @@ export default function Streamgraph() {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <div className="hint">Volúmenes reales · SMART {fmt(458)}/{fmt(321)}/{fmt(160)} · CORE {fmt(1745)}/{fmt(1047)}/{fmt(733)}.
-        La forma mensual de cada curva es ilustrativa; los totales anuales son los planeados.</div>
+      <div className="hint">Volúmenes reales y curvas de SMART + CORE didácticas tomados del <b>mismo modelo que alimenta el
+        Simulador</b> (una sola fuente de verdad). Las curvas de uso y profundización de CORE modelan la adopción
+        aguas abajo en el verano 2027, fuera de la ventana operativa del simulador.</div>
     </div>
   )
 }
