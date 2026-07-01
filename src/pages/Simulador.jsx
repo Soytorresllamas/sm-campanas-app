@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model.js'
 
-const NAVY = '#185FA5', GREEN = '#1D9E75', NAVYL = '#85B7EB', AMBER = '#D85A30'
+const SMART = '#E40521', CORE = '#2C8A7B', BLUE = '#2563B0', BLUEL = '#9DBBDD', GOLD = '#B5841C', GOOD = '#157A38'
 
 function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
   return (
@@ -166,8 +166,8 @@ export default function Simulador() {
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
-                <Bar dataKey="smart" name="SMART" stackId="a" fill={NAVY} />
-                <Bar dataKey="core" name="CORE" stackId="a" fill={GREEN} />
+                <Bar dataKey="smart" name="SMART" stackId="a" fill={SMART} />
+                <Bar dataKey="core" name="CORE" stackId="a" fill={CORE} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -178,10 +178,10 @@ export default function Simulador() {
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
-                <Bar dataKey="cov" name="Empleados (uso/prof)" stackId="b" fill={NAVY} />
-                <Bar dataKey="extUP" name="Externos uso/prof" stackId="b" fill="rgba(24,95,165,.45)" />
-                <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={GREEN} />
-                <ReferenceLine y={R(k.cap)} stroke={AMBER} strokeDasharray="5 4" label={{ value: 'capacidad', fontSize: 10, fill: AMBER, position: 'right' }} />
+                <Bar dataKey="cov" name="Empleados (uso/prof)" stackId="b" fill={BLUE} />
+                <Bar dataKey="extUP" name="Externos uso/prof" stackId="b" fill="rgba(37,99,176,.4)" />
+                <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={CORE} />
+                <ReferenceLine y={R(k.cap)} stroke={GOLD} strokeDasharray="5 4" label={{ value: 'capacidad', fontSize: 10, fill: GOLD, position: 'right' }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -192,8 +192,8 @@ export default function Simulador() {
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
-                <Bar dataKey="ret" name="Retención" stackId="c" fill={NAVYL} />
-                <Bar dataKey="conq" name="Conquista" stackId="c" fill={GREEN} />
+                <Bar dataKey="ret" name="Retención" stackId="c" fill={BLUEL} />
+                <Bar dataKey="conq" name="Conquista" stackId="c" fill={GOOD} />
               </BarChart>
             </ResponsiveContainer>
           </div>

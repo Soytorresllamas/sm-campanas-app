@@ -3,12 +3,12 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContai
 
 const MONTHS = ["Sep'26","Oct'26","Nov","Dic","Ene'27","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep'27","Oct'27"]
 const SERIES = [
-  { k: 'Su', name: 'SMART · uso',            cen: 2,   sig: 1.5, pk: 458,  fill: '#185FA5' },
-  { k: 'Sp', name: 'SMART · profundización', cen: 5,   sig: 1.5, pk: 321,  fill: '#1D9E75' },
-  { k: 'Sd', name: 'SMART · didácticas esp.',cen: 7,   sig: 1.3, pk: 160,  fill: '#D85A30' },
-  { k: 'Cd', name: 'CORE · didácticas esp.', cen: 7,   sig: 1.4, pk: 1500, fill: '#F0997B' },
-  { k: 'Cu', name: 'CORE · uso',             cen: 9.5, sig: 1.3, pk: 1047, fill: '#85B7EB' },
-  { k: 'Cp', name: 'CORE · profundización',  cen: 11,  sig: 1.3, pk: 733,  fill: '#5DCAA5' },
+  { k: 'Su', name: 'SMART · uso',            cen: 2,   sig: 1.5, pk: 458,  fill: '#E40521' },
+  { k: 'Sp', name: 'SMART · profundización', cen: 5,   sig: 1.5, pk: 321,  fill: '#2C8A7B' },
+  { k: 'Sd', name: 'SMART · didácticas esp.',cen: 7,   sig: 1.3, pk: 160,  fill: '#B5841C' },
+  { k: 'Cd', name: 'CORE · didácticas esp.', cen: 7,   sig: 1.4, pk: 1500, fill: '#DEC899' },
+  { k: 'Cu', name: 'CORE · uso',             cen: 9.5, sig: 1.3, pk: 1047, fill: '#F38F9B' },
+  { k: 'Cp', name: 'CORE · profundización',  cen: 11,  sig: 1.3, pk: 733,  fill: '#A0CAC4' },
 ]
 const g = (i, c, s, p) => p * Math.exp(-0.5 * ((i - c) / s) ** 2)
 
@@ -36,8 +36,8 @@ export default function Streamgraph() {
               <Area key={s.k} type="monotone" dataKey={s.k} name={s.name} stackId="1"
                 stroke="#fff" strokeWidth={0.6} fill={s.fill} fillOpacity={1} />
             ))}
-            <ReferenceLine x="Sep'26" stroke="#534AB7" strokeDasharray="2 3" strokeWidth={1.5}
-              label={{ value: 'Convención General SM · 7-9 sep', position: 'top', fontSize: 10.5, fill: '#534AB7' }} />
+            <ReferenceLine x="Sep'26" stroke="#7A4A86" strokeDasharray="2 3" strokeWidth={1.5}
+              label={{ value: 'Convención General SM · 7-9 sep', position: 'top', fontSize: 10.5, fill: '#7A4A86' }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>

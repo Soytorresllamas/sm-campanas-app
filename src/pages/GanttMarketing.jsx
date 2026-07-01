@@ -6,7 +6,7 @@ const AXI = ["Jun","Jul","Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","
 const AXY = ["26","26","26","26","26","26","26","27","27","27","27","27","27","27","27","27"]
 const M = ["Jul","Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep"]
 const MY = ["26","26","26","26","26","26","27","27","27","27","27","27","27","27","27"]
-const COL = { S: '#185FA5', C: '#1D9E75', T: '#888780' }
+const COL = { S: '#E40521', C: '#2C8A7B', T: '#8C92A0' }
 const CATS = [
   '0 · Inteligencia y segmentación', 'Assets, mensajes y oferta', '1 · SMART · Activación temprana',
   '2 · SMART · Cierre', '3 · SMART · Upsell didácticas', '4 · CORE · Apertura + gancho',
@@ -14,9 +14,9 @@ const CATS = [
   '7 · Medición y cierre auditado', '8 · Always-on: contenido y retención',
 ]
 const MILES = [
-  { f: (2 + 0.28) / NAX, t: 'Convención 8-10 sep', c: '#534AB7' },
-  { f: 8 / NAX, t: 'tope feb', c: '#D85A30' },
-  { f: 14 / NAX, t: 'auditoría', c: '#D85A30' },
+  { f: (2 + 0.28) / NAX, t: 'Convención 8-10 sep', c: '#7A4A86' },
+  { f: 8 / NAX, t: 'tope feb', c: '#B5841C' },
+  { f: 14 / NAX, t: 'auditoría', c: '#B5841C' },
 ]
 const TASKS = [
   ['0 · Inteligencia y segmentación', 'Limpieza y unificación del CSV nominal', 0, 0, 'T', false],
@@ -136,11 +136,11 @@ export default function GanttMarketing() {
       </div>
 
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, color: '#555', marginTop: 10 }}>
-        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#185FA5', marginRight: 4, verticalAlign: 'middle' }} />SMART</span>
-        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#1D9E75', marginRight: 4, verticalAlign: 'middle' }} />CORE</span>
-        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#888780', marginRight: 4, verticalAlign: 'middle' }} />Transversal</span>
-        <span style={{ color: '#534AB7' }}>▮ Convención Comercial</span>
-        <span style={{ color: '#D85A30' }}>▮ hito</span>
+        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#E40521', marginRight: 4, verticalAlign: 'middle' }} />SMART</span>
+        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#2C8A7B', marginRight: 4, verticalAlign: 'middle' }} />CORE</span>
+        <span><span style={{ display: 'inline-block', width: 13, height: 11, borderRadius: 2, background: '#8C92A0', marginRight: 4, verticalAlign: 'middle' }} />Transversal</span>
+        <span style={{ color: '#7A4A86' }}>▮ Convención Comercial</span>
+        <span style={{ color: '#B5841C' }}>▮ hito</span>
       </div>
     </div>
   )
