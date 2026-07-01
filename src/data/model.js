@@ -40,9 +40,12 @@ export function compute(st) {
     const adicST = st.vAdicS * cas[i] * st.tAdic, adicCT = st.vAdicC * cac[i] * st.tAdic;
     const smart = usoT + profT + adicST, core = adicCT, up = usoT + profT;
     const cov = Math.min(up, cap), extUP = Math.max(0, up - cap), adicExt = adicST + adicCT;
-    const ret = smart * rS + core * rC, conq = smart * (1 - rS) + core * (1 - rC);
+    const retSmart = smart * rS, conqSmart = smart * (1 - rS);
+    const retCore = core * rC, conqCore = core * (1 - rC);
+    const ret = retSmart + retCore, conq = conqSmart + conqCore;
     rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, smart, core, up, cap, cov, extUP, adicExt,
-      totExt: extUP + adicExt, util: cap ? cov / cap : 0, ret, conq });
+      totExt: extUP + adicExt, util: cap ? cov / cap : 0,
+      ret, conq, retSmart, conqSmart, retCore, conqCore });
   }
   const sum = (f) => rows.reduce((s, x) => s + f(x), 0);
   const totalT = sum((x) => x.smart + x.core);
@@ -50,6 +53,9 @@ export function compute(st) {
   const extPeak = rows.reduce((a, b) => b.totExt > a.totExt ? b : a);
   const meses = rows.filter((x) => x.extUP > 0.5).length;
   const totRet = sum((x) => x.ret), totConq = sum((x) => x.conq);
+  const totSmart = sum((x) => x.smart), totCore = sum((x) => x.core);
+  const totRetSmart = sum((x) => x.retSmart), totConqSmart = sum((x) => x.conqSmart);
+  const totRetCore = sum((x) => x.retCore), totConqCore = sum((x) => x.conqCore);
   const conqPeak = rows.reduce((a, b) => b.conq > a.conq ? b : a);
   const k = {
     cap, totalT, peak, extPeak, meses,
@@ -58,6 +64,9 @@ export function compute(st) {
     cabExtPico: Math.ceil(extPeak.totExt / (st.prodExt || 1)),
     totExt: sum((x) => x.totExt), totRet, totConq,
     pctConq: (totRet + totConq) ? totConq / (totRet + totConq) : 0, conqPeak,
+    totSmart, totCore, totRetSmart, totConqSmart, totRetCore, totConqCore,
+    pctConqSmart: totSmart ? totConqSmart / totSmart : 0,
+    pctConqCore: totCore ? totConqCore / totCore : 0,
   };
   return { rows, k };
 }

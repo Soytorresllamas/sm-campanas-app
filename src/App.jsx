@@ -3,13 +3,17 @@ import Simulador from './pages/Simulador.jsx'
 import GanttMarketing from './pages/GanttMarketing.jsx'
 import Streamgraph from './pages/Streamgraph.jsx'
 import Documentos from './pages/Documentos.jsx'
+import logoSM from './assets/logo-sm.svg'
 
 export default function App() {
   return (
     <>
       <header className="app-header">
         <div className="inner">
-          <div className="brand">SM · Planeación 2 Campañas<small>Nuevo modelo 2026-2027 · Comité de Negocios</small></div>
+          <div className="brand">
+            <img src={logoSM} alt="SM México" className="brand-logo" />
+            <span className="brand-txt">Planeación 2 Campañas<small>Nuevo modelo 2026-2027 · Comité de Negocios</small></span>
+          </div>
           <nav className="nav">
             <NavLink to="/simulador">Simulador</NavLink>
             <NavLink to="/gantt">Gantt marketing</NavLink>

@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model.js'
 
-const SMART = '#E40521', CORE = '#2C8A7B', BLUE = '#2563B0', BLUEL = '#9DBBDD', GOLD = '#B5841C', GOOD = '#157A38'
+const SMART = '#E40521', CORE = '#2C8A7B', BLUE = '#2563B0', BLUEL = '#9DBBDD', GOLD = '#B5841C'
 
 function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
   return (
@@ -12,6 +12,25 @@ function Num({ label, unit, value, onChange, step = 1, min = 0, max }) {
       <label>{label} {unit && <span className="u">{unit}</span>}</label>
       <input type="number" value={value} min={min} max={max} step={step}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
+    </div>
+  )
+}
+
+function RetConq({ label, value, retColor, conqColor, onChange }) {
+  return (
+    <div className="retconq">
+      <div className="retconq-head">
+        <span>{label}</span>
+        <span className="retconq-nums">
+          <b style={{ color: retColor }}>{R(value)}% ret.</b> · <b style={{ color: conqColor }}>{R(100 - value)}% conq.</b>
+        </span>
+      </div>
+      <div className="retconq-bar">
+        <span style={{ width: `${value}%`, background: retColor }} />
+        <span style={{ width: `${100 - value}%`, background: conqColor }} />
+      </div>
+      <input type="range" min="0" max="100" step="1" value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))} aria-label={`Retención ${label}`} />
     </div>
   )
 }
@@ -130,11 +149,10 @@ export default function Simulador() {
 
           <div className="panel">
             <h3>Retención vs conquista</h3>
-            <div className="two">
-              <Num label="Retención SMART" unit="%" max={100} value={n.retS} onChange={(v) => set('retS', v)} />
-              <Num label="Retención CORE" unit="%" max={100} value={n.retC} onChange={(v) => set('retC', v)} />
-            </div>
-            <div className="hint">El resto es conquista (clientes nuevos), aplicado a los talleres de cada campaña, mes a mes.</div>
+            <RetConq label="SMART" retColor={BLUEL} conqColor={SMART} value={n.retS} onChange={(v) => set('retS', v)} />
+            <RetConq label="CORE" retColor="#A0CAC4" conqColor={CORE} value={n.retC} onChange={(v) => set('retC', v)} />
+            <div className="hint">Ajusta la proporción de cada campaña: la retención conserva la base actual y el resto es
+              conquista (clientes nuevos), aplicado a los talleres mes a mes.</div>
           </div>
 
           <div className="panel">
@@ -186,17 +204,26 @@ export default function Simulador() {
             </ResponsiveContainer>
           </div>
 
-          <h2>3 · Retención vs conquista por mes</h2>
+          <h2>3 · Retención vs conquista por campaña y mes</h2>
+          <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
+            <div className="kpi"><div className="v">{R(k.pctConqSmart * 100)}%</div><div className="l">Conquista SMART · {R(k.totConqSmart)} talleres</div></div>
+            <div className="kpi"><div className="v">{R((1 - k.pctConqSmart) * 100)}%</div><div className="l">Retención SMART · {R(k.totRetSmart)} talleres</div></div>
+            <div className="kpi good"><div className="v">{R(k.pctConqCore * 100)}%</div><div className="l">Conquista CORE · {R(k.totConqCore)} talleres</div></div>
+            <div className="kpi"><div className="v">{R((1 - k.pctConqCore) * 100)}%</div><div className="l">Retención CORE · {R(k.totRetCore)} talleres</div></div>
+          </div>
           <div className="chartbox">
-            <ResponsiveContainer width="100%" height={230}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(v)} /><Legend />
-                <Bar dataKey="ret" name="Retención" stackId="c" fill={BLUEL} />
-                <Bar dataKey="conq" name="Conquista" stackId="c" fill={GOOD} />
+                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v, n) => [R(v), n]} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="retSmart" name="SMART · retención" stackId="c" fill={BLUEL} />
+                <Bar dataKey="conqSmart" name="SMART · conquista" stackId="c" fill={SMART} />
+                <Bar dataKey="retCore" name="CORE · retención" stackId="c" fill="#A0CAC4" />
+                <Bar dataKey="conqCore" name="CORE · conquista" stackId="c" fill={CORE} />
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <div className="hint">Barras apiladas por mes: SMART (retención azul claro · conquista rojo) y CORE (retención verde claro · conquista verde). Ajusta las proporciones en el panel «Retención vs conquista».</div>
 
           {(scen.A || scen.B) && (
             <>
