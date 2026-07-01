@@ -252,6 +252,15 @@ export default function GanttMarketing() {
     return out
   }, [depsOn, groups, collapsed, layout])
 
+  // Recorta el SVG de flechas por la izquierda según el scroll, para que las líneas
+  // nunca se dibujen por detrás de la columna sticky de títulos.
+  const scrollRef = useRef(null); const arrowsRef = useRef(null)
+  const applyArrowClip = () => {
+    const sl = scrollRef.current ? scrollRef.current.scrollLeft : 0
+    if (arrowsRef.current) arrowsRef.current.style.clipPath = `inset(0 0 0 ${sl}px)`
+  }
+  useEffect(() => { applyArrowClip() })
+
   /* ----- drag ----- */
   const drag = useRef(null); const moved = useRef(false)
   const onMove = useCallback((e) => {
@@ -389,7 +398,7 @@ export default function GanttMarketing() {
       </div>
 
       <div className="chartbox" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="g-scroll">
+        <div className="g-scroll" ref={scrollRef} onScroll={applyArrowClip}>
           <div className="g-inner" style={{ width: LBL + timelineW }}>
             <div className="g-head" style={{ height: 40 }}>
               <div className="g-cell-lbl" style={{ width: LBL }}>Tarea</div>
@@ -403,7 +412,7 @@ export default function GanttMarketing() {
             </div>
 
             {depsOn && arrows.length > 0 && (
-              <svg className="g-arrows" width={timelineW} height={layout.height}
+              <svg className="g-arrows" ref={arrowsRef} width={timelineW} height={layout.height}
                 style={{ position: 'absolute', top: 0, left: LBL, zIndex: 2, pointerEvents: 'none' }}>
                 <defs>
                   <marker id="g-ah" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto">
