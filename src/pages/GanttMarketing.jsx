@@ -167,7 +167,7 @@ export default function GanttMarketing() {
   }, [undo])
 
   const ppd = PPD[zoom]
-  const LBL = 232
+  const LBL = 464
 
   const domain = useMemo(() => {
     let min = Infinity, max = -Infinity
@@ -309,6 +309,8 @@ export default function GanttMarketing() {
     r.readAsText(f); e.target.value = ''
   }
   const toggleCat = (k) => setCollapsed((p) => { const s = new Set(p); s.has(k) ? s.delete(k) : s.add(k); return s })
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key))
+  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)))
   const toggleStatus = (k) => setStatusF((p) => { const s = new Set(p); s.has(k) ? s.delete(k) : s.add(k); return s })
 
   const exportCSV = () => {
@@ -367,6 +369,7 @@ export default function GanttMarketing() {
         <label className="g-chk" style={{ borderColor: depsOn ? '#8C92A0' : 'var(--line-2)' }}>
           <input type="checkbox" checked={depsOn} onChange={() => setDepsOn((v) => !v)} />↳ Dependencias
         </label>
+        <button className="sec" onClick={toggleAll}>{allCollapsed ? 'Expandir todo' : 'Colapsar todo'}</button>
         <button className="sec" onClick={addTask}>+ Acción</button>
         <button className="sec" onClick={undo} disabled={!history.current.length} title="Deshacer (Ctrl/⌘+Z)">↶ Deshacer</button>
         <button className="sec" onClick={exportCSV}>CSV</button>
@@ -424,9 +427,7 @@ export default function GanttMarketing() {
                 <div key={g.key}>
                   <div className="g-group" onClick={() => toggleCat(g.key)}>
                     <div className="g-cell-lbl g-group-lbl" style={{ width: LBL }}>
-                      <span className="g-caret">{col ? '▸' : '▾'}</span>
-                      <span className="g-group-dot" style={{ background: g.color }} />{g.label}
-                      <span className="g-count">({g.items.length})</span>
+                      {g.label}<span className="g-count">({g.items.length})</span>
                     </div>
                     <div className="g-timeline" style={{ width: timelineW }} />
                   </div>
