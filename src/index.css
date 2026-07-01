@@ -80,7 +80,26 @@ tr.total td{font-weight:700;background:var(--panel-bg);}
 .bar-track{height:9px;background:var(--panel-bg);border-radius:5px;overflow:hidden;}
 .bar-fill{display:block;height:100%;border-radius:5px;min-width:3px;}
 .ledger-val{font-family:Newsreader,serif;font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--ink);min-width:44px;text-align:right;}
+/* ---- Gate de acceso ---- */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:24px;}
+.gate-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:34px 30px;width:100%;max-width:360px;text-align:center;box-shadow:0 10px 40px rgba(21,23,28,.06);}
+.gate-logo{height:34px;margin-bottom:18px;}
+.gate-title{font-family:Newsreader,serif;font-size:22px;font-weight:700;margin:0 0 6px;color:var(--ink);}
+.gate-sub{font-size:12.5px;color:var(--mut);line-height:1.5;margin:0 0 20px;}
+.gate-input{width:100%;padding:11px 13px;border:1px solid var(--line-2);border-radius:9px;font-size:14px;font-family:inherit;margin-bottom:12px;}
+.gate-input.err{border-color:var(--neg);background:var(--neg-wash);}
+.gate-err{font-size:12px;color:var(--neg);margin:-4px 0 12px;}
+.gate-btn{width:100%;padding:11px;border:0;border-radius:9px;background:var(--red);color:#fff;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;}
+.gate-btn:disabled{opacity:.55;cursor:default;}
+.route-loading{padding:40px 4px;color:var(--mut);font-size:13px;}
+
 /* ---- Gantt gestión ---- */
+.g-titlebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.g-sync{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 10px;border:1px solid;border-radius:20px;}
+.g-sync-dot{width:7px;height:7px;border-radius:50%;}
+.g-import{position:relative;overflow:hidden;display:inline-flex;align-items:center;}
+.g-import input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+button.sec:disabled{opacity:.45;cursor:default;}
 .kmeter{height:5px;border-radius:3px;background:var(--panel-bg);overflow:hidden;margin-top:6px;}
 .kmeter span{display:block;height:100%;background:var(--green);border-radius:3px;}
 .g-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px;}
@@ -96,11 +115,11 @@ tr.total td{font-weight:700;background:var(--panel-bg);}
 .g-sf-label{font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;}
 .g-pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-family:inherit;padding:4px 10px;border:1px solid var(--line-2);border-radius:20px;background:var(--surface);color:var(--ink-2);cursor:pointer;}
 .g-pill.on .g-dot{background:#fff !important;}
-.g-scroll{overflow-x:auto;overflow-y:hidden;}
+.g-scroll{overflow:auto;max-height:74vh;}
 .g-inner{position:relative;}
-.g-head{display:flex;align-items:flex-end;border-bottom:1px solid var(--line);position:relative;}
+.g-head{display:flex;align-items:flex-end;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:6;background:var(--surface);}
 .g-cell-lbl{flex:none;position:sticky;left:0;z-index:3;background:var(--surface);box-shadow:1px 0 0 var(--line);padding:0 12px;display:flex;align-items:center;}
-.g-head .g-cell-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);height:100%;}
+.g-head .g-cell-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);height:100%;z-index:7;}
 .g-timeline{flex:none;position:relative;height:100%;}
 .g-month{position:absolute;bottom:4px;border-left:1px solid var(--line);height:26px;display:flex;align-items:flex-end;}
 .g-month span{font-size:9.5px;color:var(--mut);padding-left:4px;white-space:nowrap;}

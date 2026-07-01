@@ -1,9 +1,11 @@
+import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
-import Simulador from './pages/Simulador.jsx'
-import GanttMarketing from './pages/GanttMarketing.jsx'
-import Streamgraph from './pages/Streamgraph.jsx'
-import Documentos from './pages/Documentos.jsx'
 import logoSM from './assets/logo-sm.svg'
+
+const Simulador = lazy(() => import('./pages/Simulador.jsx'))
+const GanttMarketing = lazy(() => import('./pages/GanttMarketing.jsx'))
+const Streamgraph = lazy(() => import('./pages/Streamgraph.jsx'))
+const Documentos = lazy(() => import('./pages/Documentos.jsx'))
 
 export default function App() {
   return (
@@ -18,18 +20,20 @@ export default function App() {
             <NavLink to="/simulador">Simulador</NavLink>
             <NavLink to="/gantt">Gantt marketing</NavLink>
             <NavLink to="/servicios">Servicios (streamgraph)</NavLink>
-            <NavLink to="/documentos">Documentos</NavLink>
           </nav>
         </div>
       </header>
       <main className="page">
-        <Routes>
-          <Route path="/" element={<Navigate to="/simulador" replace />} />
-          <Route path="/simulador" element={<Simulador />} />
-          <Route path="/gantt" element={<GanttMarketing />} />
-          <Route path="/servicios" element={<Streamgraph />} />
-          <Route path="/documentos" element={<Documentos />} />
-        </Routes>
+        <Suspense fallback={<div className="route-loading">Cargando…</div>}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/simulador" replace />} />
+            <Route path="/simulador" element={<Simulador />} />
+            <Route path="/gantt" element={<GanttMarketing />} />
+            <Route path="/servicios" element={<Streamgraph />} />
+            {/* Documentos queda accesible por URL (#/documentos) pero fuera del menú. */}
+            <Route path="/documentos" element={<Documentos />} />
+          </Routes>
+        </Suspense>
       </main>
     </>
   )

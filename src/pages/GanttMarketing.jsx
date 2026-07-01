@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
+import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/ganttStore.js'
 
 /* ---------- dominio ---------- */
 const MS = 86400000
@@ -94,17 +95,15 @@ const buildSeed = () => {
   return tasks
 }
 
-const LS_KEY = 'sm-gantt-26-27-v1'
-const loadTasks = () => {
-  try { const raw = localStorage.getItem(LS_KEY); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) return p } } catch (e) { /* noop */ }
-  return buildSeed()
-}
-
 const PPD = { trimestre: 2.4, mes: 5.2, semana: 14 }
+const SYNC = {
+  loading: { label: 'Cargando…', hex: '#B5841C' }, saving: { label: 'Guardando…', hex: '#B5841C' },
+  synced: { label: 'Sincronizado ✓', hex: '#157A38' }, error: { label: 'Sin conexión · local', hex: '#BE1409' },
+}
 
 /* ---------- componente ---------- */
 export default function GanttMarketing() {
-  const [tasks, setTasks] = useState(loadTasks)
+  const [tasks, setTasks] = useState(() => loadLocal() || buildSeed())
   const [groupBy, setGroupBy] = useState('module')
   const [zoom, setZoom] = useState('mes')
   const [query, setQuery] = useState('')
@@ -112,9 +111,42 @@ export default function GanttMarketing() {
   const [statusF, setStatusF] = useState(new Set())
   const [collapsed, setCollapsed] = useState(() => new Set())
   const [selId, setSelId] = useState(null)
+  const [sync, setSync] = useState('loading')
 
   const tasksRef = useRef(tasks); tasksRef.current = tasks
-  useEffect(() => { try { localStorage.setItem(LS_KEY, JSON.stringify(tasks)) } catch (e) { /* noop */ } }, [tasks])
+  const ready = useRef(false); const skipSave = useRef(false); const saveTimer = useRef(null)
+  const history = useRef([])
+  const pushHistory = () => { history.current.push(JSON.stringify(tasksRef.current)); if (history.current.length > 60) history.current.shift() }
+  const undo = useCallback(() => { const prev = history.current.pop(); if (prev) setTasks(JSON.parse(prev)) }, [])
+
+  // carga inicial desde Supabase (con lo local ya pintado al instante)
+  useEffect(() => {
+    let alive = true
+    loadRemote().then(async ({ tasks: rt, source, error }) => {
+      if (!alive) return
+      if (source === 'remote') { skipSave.current = true; setTasks(rt); setSync('synced') }
+      else if (error) { setSync('error') }
+      else { const { ok } = await saveRemote(tasksRef.current); setSync(ok ? 'synced' : 'error') }
+      ready.current = true
+    })
+    return () => { alive = false }
+  }, [])
+
+  // guardado: local inmediato + remoto con debounce
+  useEffect(() => {
+    saveLocal(tasks)
+    if (!ready.current) return
+    if (skipSave.current) { skipSave.current = false; return }
+    setSync((s) => s === 'error' ? 'error' : 'saving')
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => { const { ok } = await saveRemote(tasksRef.current); setSync(ok ? 'synced' : 'error') }, 700)
+    return () => clearTimeout(saveTimer.current)
+  }, [tasks])
+
+  useEffect(() => {
+    const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo() } }
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
+  }, [undo])
 
   const ppd = PPD[zoom]
   const LBL = 232
@@ -187,27 +219,36 @@ export default function GanttMarketing() {
     }))
   }, [])
   const endDrag = useCallback(() => {
+    if (!moved.current) history.current.pop() // descarta el snapshot si fue un clic sin mover
     drag.current = null
     window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', endDrag)
     document.body.classList.remove('g-dragging')
   }, [onMove])
   const startDrag = (e, t, mode) => {
     if (e.button != null && e.button !== 0) return
-    e.preventDefault(); e.stopPropagation(); moved.current = false
+    e.preventDefault(); e.stopPropagation(); moved.current = false; pushHistory()
     drag.current = { id: t.id, mode, startX: e.clientX, s: parse(t.start), e: parse(t.end), ppd }
     window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', endDrag)
     document.body.classList.add('g-dragging')
   }
-  const clickBar = (id) => { if (moved.current) { moved.current = false; return } setSelId(id) }
+  const openTask = (id) => { pushHistory(); setSelId(id) }
+  const clickBar = (id) => { if (moved.current) { moved.current = false; return } openTask(id) }
 
   /* ----- mutaciones ----- */
   const patch = (next) => setTasks((ts) => ts.map((t) => t.id === next.id ? next : t))
-  const del = (id) => { setTasks((ts) => ts.filter((t) => t.id !== id)); setSelId(null) }
+  const del = (id) => { pushHistory(); setTasks((ts) => ts.filter((t) => t.id !== id)); setSelId(null) }
   const addTask = () => {
+    pushHistory()
     const id = 'u' + Date.now().toString(36)
     const start = Date.UTC(2026, 8, 1)
     const nt = { id, module: MODULES[0], name: 'Nueva acción', detail: '', track: 'T', soft: false, start: toISO(start), end: toISO(start + 20 * MS), owner: OWNERS[0], status: 'todo', progress: 0, milestone: false }
     setTasks((ts) => [...ts, nt]); setSelId(id)
+  }
+  const importJSON = (e) => {
+    const f = e.target.files?.[0]; if (!f) return
+    const r = new FileReader()
+    r.onload = () => { try { const p = JSON.parse(r.result); if (Array.isArray(p) && p.length) { pushHistory(); setTasks(p) } else window.alert('El archivo no contiene un tablero válido.') } catch (err) { window.alert('No se pudo leer el JSON.') } }
+    r.readAsText(f); e.target.value = ''
   }
   const toggleCat = (k) => setCollapsed((p) => { const s = new Set(p); s.has(k) ? s.delete(k) : s.add(k); return s })
   const toggleStatus = (k) => setStatusF((p) => { const s = new Set(p); s.has(k) ? s.delete(k) : s.add(k); return s })
@@ -224,16 +265,21 @@ export default function GanttMarketing() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' }))
     a.download = 'gantt_marketing_26-27.json'; a.click()
   }
-  const reset = () => { if (window.confirm('¿Restablecer el tablero al plan original? Se perderán tus cambios locales.')) { setTasks(buildSeed()); setSelId(null) } }
+  const reset = () => { if (window.confirm('¿Restablecer el tablero al plan original? Esto reemplaza el tablero compartido para todo el comité.')) { pushHistory(); setTasks(buildSeed()); setSelId(null) } }
 
   const sel = tasks.find((t) => t.id === selId)
   const rowH = 30, barH = 17
 
   return (
     <div>
-      <h1>Gantt de gestión · marketing 26-27</h1>
-      <div className="sub">Tablero editable del plan. <b>Arrastra el centro</b> de una barra para reprogramar,
-        <b> los bordes</b> para cambiar la duración, y haz <b>clic</b> para editar. Se guarda en tu navegador.</div>
+      <div className="g-titlebar">
+        <h1>Gantt de gestión · marketing 26-27</h1>
+        <span className="g-sync" style={{ color: SYNC[sync].hex, borderColor: SYNC[sync].hex + '55' }}>
+          <span className="g-sync-dot" style={{ background: SYNC[sync].hex }} />{SYNC[sync].label}
+        </span>
+      </div>
+      <div className="sub">Tablero editable y <b>compartido</b> con el comité. <b>Arrastra el centro</b> de una barra para
+        reprogramar, <b>los bordes</b> para cambiar la duración, y haz <b>clic</b> para editar. Ctrl/⌘+Z deshace.</div>
 
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
         <div className="kpi"><div className="v">{kpi.total}</div><div className="l">Acciones</div></div>
@@ -261,8 +307,10 @@ export default function GanttMarketing() {
           </label>
         ))}
         <button className="sec" onClick={addTask}>+ Acción</button>
+        <button className="sec" onClick={undo} disabled={!history.current.length} title="Deshacer (Ctrl/⌘+Z)">↶ Deshacer</button>
         <button className="sec" onClick={exportCSV}>CSV</button>
         <button className="sec" onClick={exportJSON}>JSON</button>
+        <label className="sec g-import">Importar<input type="file" accept="application/json,.json" onChange={importJSON} /></label>
         <button className="sec" onClick={reset}>Restablecer</button>
       </div>
 
@@ -308,7 +356,7 @@ export default function GanttMarketing() {
                     const tc = TRACKS[t.track].hex
                     return (
                       <div key={t.id} className={`g-row ${selId === t.id ? 'sel' : ''}`} style={{ height: rowH }}>
-                        <div className="g-cell-lbl g-row-lbl" style={{ width: LBL }} onClick={() => setSelId(t.id)}>
+                        <div className="g-cell-lbl g-row-lbl" style={{ width: LBL }} onClick={() => openTask(t.id)}>
                           <span className="g-status-dot" style={{ background: STATUS[t.status].hex }} title={STATUS[t.status].label} />
                           <span className="g-row-name" title={t.name}>{t.name}</span>
                         </div>

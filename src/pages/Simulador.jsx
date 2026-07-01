@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from 'recharts'
@@ -41,7 +41,11 @@ export default function Simulador() {
   const [shapes, setShapes] = useState(() => STREAMS.map((s) => ({ focal: s.focal, spread: s.spread })))
   const [intens, setIntens] = useState(1)
   const [linked, setLinked] = useState(true)
-  const [scen, setScen] = useState({ A: null, B: null })
+  const [scen, setScen] = useState(() => {
+    try { const r = localStorage.getItem('sm-sim-scen-v1'); if (r) return JSON.parse(r) } catch (e) { /* noop */ }
+    return { A: null, B: null }
+  })
+  useEffect(() => { try { localStorage.setItem('sm-sim-scen-v1', JSON.stringify(scen)) } catch (e) { /* noop */ } }, [scen])
 
   const set = (key, v) => setN((p) => ({ ...p, [key]: v }))
   const { rows, k } = useMemo(() => compute({ ...n, curves }), [n, curves])
@@ -110,6 +114,7 @@ export default function Simulador() {
             <div className="row-btn">
               <button className="sec" onClick={() => saveScen('A')}>Guardar A</button>
               <button className="sec" onClick={() => saveScen('B')}>Guardar B</button>
+              {(scen.A || scen.B) && <button className="sec" onClick={() => setScen({ A: null, B: null })}>Limpiar A/B</button>}
               <button className="sec" onClick={reset}>Restablecer</button>
               <button className="sec" onClick={exportCSV}>CSV</button>
             </div>
