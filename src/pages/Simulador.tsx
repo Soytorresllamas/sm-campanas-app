@@ -6,6 +6,9 @@ import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../
 import type { Curves, Defaults, ComputeKpis } from '../data/model'
 
 const SMART = '#2563B0', CORE = '#2C8A7B', BLUE = '#1F5AA6', BLUEL = '#9BBFE8', GOLD = '#B5841C'
+// Intensidad por tipo de servicio: uso (oscuro) → profundización (medio) → didácticas (claro).
+const SMART_USO = '#1F5AA6', SMART_PROF = '#4A82C4', SMART_DIDAC = '#9BBFE8'
+const CORE_USO = '#2C8A7B', CORE_PROF = '#63AE9D', CORE_DIDAC = '#AAD0C8'
 const money = (x: number) => x.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 
 interface NumProps {
@@ -222,12 +225,17 @@ export default function Simulador() {
             <ResponsiveContainer width="100%" height={230}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(Number(v))} /><Legend />
-                <Bar dataKey="smart" name="SMART" stackId="a" fill={SMART} />
-                <Bar dataKey="core" name="CORE" stackId="a" fill={CORE} />
+                <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v, n) => [R(Number(v)), n]} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="usoT" name="SMART · uso" stackId="a" fill={SMART_USO} />
+                <Bar dataKey="profT" name="SMART · profundización" stackId="a" fill={SMART_PROF} />
+                <Bar dataKey="adicST" name="SMART · didácticas" stackId="a" fill={SMART_DIDAC} />
+                <Bar dataKey="usoCT" name="CORE · uso" stackId="a" fill={CORE_USO} />
+                <Bar dataKey="profCT" name="CORE · profundización" stackId="a" fill={CORE_PROF} />
+                <Bar dataKey="adicCT" name="CORE · didácticas" stackId="a" fill={CORE_DIDAC} />
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <div className="hint">Intensidad por tipo de servicio: uso (oscuro) → profundización (medio) → didácticas específicas (claro). Azul = SMART, verde = CORE.</div>
 
           <h2>2 · Reparto empleados vs externos</h2>
           <div className="chartbox">
