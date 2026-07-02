@@ -6,6 +6,7 @@ import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../
 import type { Curves, Defaults, ComputeKpis } from '../data/model'
 
 const SMART = '#2563B0', CORE = '#2C8A7B', BLUE = '#1F5AA6', BLUEL = '#9BBFE8', GOLD = '#B5841C'
+const money = (x: number) => x.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 
 interface NumProps {
   label: string; unit?: string; value: number; onChange: (v: number) => void;
@@ -76,14 +77,14 @@ export default function Simulador() {
   }
   const saveScen = (slot: 'A' | 'B') => setScen((p) => ({ ...p, [slot]: { ...k } }))
   const exportCSV = () => {
-    let csv = 'Mes,SMART,CORE,Total,Uso+Prof,Cubierto empl,Ext uso-prof,Didacticas ext,Total ext,Retencion,Conquista\n'
-    rows.forEach((x) => { csv += [x.m, R(x.smart), R(x.core), R(x.smart + x.core), R(x.up), R(x.cov), R(x.extUP), R(x.adicExt), R(x.totExt), R(x.ret), R(x.conq)].join(',') + '\n' })
+    let csv = 'Mes,SMART,CORE,Total,Uso+Prof,Cubierto empl,Ext uso-prof,Didacticas ext,Total ext,Retencion,Conquista,Costo servicios,Costo traslados,Costo total\n'
+    rows.forEach((x) => { csv += [x.m, R(x.smart), R(x.core), R(x.smart + x.core), R(x.up), R(x.cov), R(x.extUP), R(x.adicExt), R(x.totExt), R(x.ret), R(x.conq), R(x.costServ), R(x.costTras), R(x.costTot)].join(',') + '\n' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     a.download = 'coberturas_asesores.csv'; a.click()
   }
 
   const kpis: [string, string | number, string][] = [
-    ['Talleres totales', R(k.totalT), ''],
+    ['Servicios totales', R(k.totalT), ''],
     ['Mes pico (total)', `${k.peak.m} · ${R(k.peak.smart + k.peak.core)}`, ''],
     ['Externos · mes pico', `${k.extPeak.m} · ${R(k.extPeak.totExt)}`, 'warn'],
     ['Cabezas externas (pico)', k.cabExtPico, 'warn'],
@@ -94,12 +95,13 @@ export default function Simulador() {
     ['Conquista · mes pico', `${k.conqPeak.m} · ${R(k.conqPeak.conq)}`, 'good'],
   ]
   const cmpRows: [string, (x: ComputeKpis) => string | number][] = [
-    ['Talleres totales', (x) => R(x.totalT)],
+    ['Servicios totales', (x) => R(x.totalT)],
     ['Externos · pico', (x) => `${R(x.extPeak.totExt)} (${x.extPeak.m})`],
     ['Cabezas externas pico', (x) => x.cabExtPico],
     ['Util. empleados anual', (x) => `${R(x.utilA * 100)}%`],
     ['Conquista total', (x) => R(x.totConq)],
     ['% conquista', (x) => `${R(x.pctConq * 100)}%`],
+    ['Costo total', (x) => money(x.costs.total)],
   ]
 
   return (
@@ -118,7 +120,7 @@ export default function Simulador() {
               ))}
             </div>
             <div className="fld">
-              <label>Intensidad de talleres <span className="u">(conservador → techo)</span></label>
+              <label>Intensidad de servicios <span className="u">(conservador → techo)</span></label>
               <input type="range" min="0" max="1" step="0.05" value={intens} onChange={(e) => applyIntensity(parseFloat(e.target.value))} />
             </div>
             <div className="row-btn">
@@ -134,16 +136,16 @@ export default function Simulador() {
             <h3>Capacidad empleados</h3>
             <Num label="Asesores empleados SM" value={n.nAse} onChange={(v) => set('nAse', v)} />
             <div className="three">
-              <Num label="Talleres/día" step={0.5} value={n.tDay} onChange={(v) => set('tDay', v)} />
+              <Num label="Servicios/día" step={0.5} value={n.tDay} onChange={(v) => set('tDay', v)} />
               <Num label="Días/sem" value={n.dWeek} onChange={(v) => set('dWeek', v)} />
               <Num label="Sem/mes" step={0.01} value={n.wMonth} onChange={(v) => set('wMonth', v)} />
             </div>
-            <Num label="Talleres/mes por externo" value={n.prodExt} min={1} onChange={(v) => set('prodExt', v)} />
-            <div className="capnote">Capacidad ≈ {R(k.cap)} talleres/mes ({n.nAse} asesores)</div>
+            <Num label="Servicios/mes por externo" value={n.prodExt} min={1} onChange={(v) => set('prodExt', v)} />
+            <div className="capnote">Capacidad ≈ {R(k.cap)} servicios/mes ({n.nAse} asesores)</div>
           </div>
 
           <div className="panel">
-            <h3>Talleres por colegio</h3>
+            <h3>Servicios por colegio</h3>
             <div className="three">
               <Num label="Uso" value={n.tUso} onChange={(v) => { setLinked(false); set('tUso', v) }} />
               <Num label="Profund." value={n.tProf} onChange={(v) => { setLinked(false); set('tProf', v) }} />
@@ -167,7 +169,23 @@ export default function Simulador() {
             <RetConq label="SMART" retColor={BLUEL} conqColor={SMART} value={n.retS} onChange={(v) => set('retS', v)} />
             <RetConq label="CORE" retColor="#A0CAC4" conqColor={CORE} value={n.retC} onChange={(v) => set('retC', v)} />
             <div className="hint">Ajusta la proporción de cada campaña: la retención conserva la base actual y el resto es
-              conquista (clientes nuevos), aplicado a los talleres mes a mes.</div>
+              conquista (clientes nuevos), aplicado a los servicios mes a mes.</div>
+          </div>
+
+          <div className="panel">
+            <h3>Costos <span className="u" style={{ fontWeight: 400 }}>(MXN)</span></h3>
+            <div className="three">
+              <Num label="Costo Uso" unit="$" step={50} value={n.costoUso} onChange={(v) => set('costoUso', v)} />
+              <Num label="Costo Profund." unit="$" step={50} value={n.costoProf} onChange={(v) => set('costoProf', v)} />
+              <Num label="Costo Didáctica" unit="$" step={50} value={n.costoDidac} onChange={(v) => set('costoDidac', v)} />
+            </div>
+            <Num label="Costo por traslado" unit="$" step={50} value={n.costoTraslado} onChange={(v) => set('costoTraslado', v)} />
+            <div className="three">
+              <Num label="% Uso c/traslado" unit="%" max={100} value={n.propTrasUso} onChange={(v) => set('propTrasUso', v)} />
+              <Num label="% Profund. c/traslado" unit="%" max={100} value={n.propTrasProf} onChange={(v) => set('propTrasProf', v)} />
+              <Num label="% Didáct. c/traslado" unit="%" max={100} value={n.propTrasDidac} onChange={(v) => set('propTrasDidac', v)} />
+            </div>
+            <div className="hint">El costo total = servicios (cantidad × costo unitario) + traslados (proporción de cada tipo × costo por traslado).</div>
           </div>
 
           <div className="panel">
@@ -193,7 +211,7 @@ export default function Simulador() {
             ))}
           </div>
 
-          <h2>1 · Coberturas de talleres por mes (SMART vs CORE)</h2>
+          <h2>1 · Coberturas de servicios por mes (SMART vs CORE)</h2>
           <div className="chartbox">
             <ResponsiveContainer width="100%" height={230}>
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
@@ -221,10 +239,10 @@ export default function Simulador() {
 
           <h2>3 · Retención vs conquista por campaña y mes</h2>
           <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
-            <div className="kpi"><div className="v">{R(k.pctConqSmart * 100)}%</div><div className="l">Conquista SMART · {R(k.totConqSmart)} talleres</div></div>
-            <div className="kpi"><div className="v">{R((1 - k.pctConqSmart) * 100)}%</div><div className="l">Retención SMART · {R(k.totRetSmart)} talleres</div></div>
-            <div className="kpi good"><div className="v">{R(k.pctConqCore * 100)}%</div><div className="l">Conquista CORE · {R(k.totConqCore)} talleres</div></div>
-            <div className="kpi"><div className="v">{R((1 - k.pctConqCore) * 100)}%</div><div className="l">Retención CORE · {R(k.totRetCore)} talleres</div></div>
+            <div className="kpi"><div className="v">{R(k.pctConqSmart * 100)}%</div><div className="l">Conquista SMART · {R(k.totConqSmart)} servicios</div></div>
+            <div className="kpi"><div className="v">{R((1 - k.pctConqSmart) * 100)}%</div><div className="l">Retención SMART · {R(k.totRetSmart)} servicios</div></div>
+            <div className="kpi good"><div className="v">{R(k.pctConqCore * 100)}%</div><div className="l">Conquista CORE · {R(k.totConqCore)} servicios</div></div>
+            <div className="kpi"><div className="v">{R((1 - k.pctConqCore) * 100)}%</div><div className="l">Retención CORE · {R(k.totRetCore)} servicios</div></div>
           </div>
           <div className="chartbox">
             <ResponsiveContainer width="100%" height={250}>
@@ -239,6 +257,35 @@ export default function Simulador() {
             </ResponsiveContainer>
           </div>
           <div className="hint">Barras apiladas por mes: SMART (retención azul claro · conquista azul) y CORE (retención verde claro · conquista verde). Ajusta las proporciones en el panel «Retención vs conquista».</div>
+
+          <h2>4 · Costos del ciclo</h2>
+          <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))' }}>
+            <div className="kpi"><div className="v">{money(k.costs.total)}</div><div className="l">Costo total del ciclo</div></div>
+            <div className="kpi"><div className="v">{money(k.costs.servicios)}</div><div className="l">Costo de servicios</div></div>
+            <div className="kpi warn"><div className="v">{money(k.costs.traslados)}</div><div className="l">Costo de traslados · {R(k.costs.trasladosN)} viajes</div></div>
+          </div>
+          <div className="chartbox">
+            <ResponsiveContainer width="100%" height={230}>
+              <BarChart data={rows} margin={{ top: 6, right: 12, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="m" fontSize={11} />
+                <YAxis fontSize={11} tickFormatter={(v) => `$${R(Number(v) / 1000)}k`} width={44} />
+                <Tooltip formatter={(v, n) => [money(Number(v)), n]} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="costServ" name="Servicios" stackId="e" fill={CORE} />
+                <Bar dataKey="costTras" name="Traslados" stackId="e" fill={GOLD} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <table>
+            <thead><tr><th>Tipo de servicio</th><th>Servicios</th><th>Costo servicios</th><th>Traslados</th><th>Costo traslados</th><th>Total</th></tr></thead>
+            <tbody>
+              {k.costs.byType.map((r) => (
+                <tr key={r.key}><td>{r.label}</td><td>{R(r.n)}</td><td>{money(r.costoServicio)}</td><td>{R(r.traslados)}</td><td>{money(r.costoTraslados)}</td><td>{money(r.total)}</td></tr>
+              ))}
+              <tr className="total"><td>Total</td><td>{R(k.totalT)}</td><td>{money(k.costs.servicios)}</td><td>{R(k.costs.trasladosN)}</td><td>{money(k.costs.traslados)}</td><td>{money(k.costs.total)}</td></tr>
+            </tbody>
+          </table>
+          <div className="hint">Un traslado es un evento de costo fijo; su cantidad sale de la proporción de servicios de cada tipo que requieren desplazamiento. Ajusta costos y proporciones en el panel «Costos».</div>
 
           {(scen.A || scen.B) && (
             <>

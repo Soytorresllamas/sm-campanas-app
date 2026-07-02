@@ -96,16 +96,16 @@ export default function Streamgraph() {
         <Ledger camp="CORE" subtotal={totCore} grand={grand} maxVol={maxVol} items={series} />
       </div>
 
-      <h2>Flujo de talleres por mes</h2>
+      <h2>Flujo de servicios por mes</h2>
       <div className="chartbox">
         <ResponsiveContainer width="100%" height={360}>
           <AreaChart data={data} margin={{ top: 24, right: 18, left: 4, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF1F4" vertical={false} />
             <XAxis dataKey="m" fontSize={10.5} tickLine={false} axisLine={{ stroke: '#D2D7DE' }} />
             <YAxis fontSize={10.5} tickLine={false} axisLine={false} width={46}
-              label={{ value: 'talleres / mes', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#646A75', dy: 40 }} />
+              label={{ value: 'servicios / mes', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#646A75', dy: 40 }} />
             <Tooltip
-              formatter={(v, k) => [`${fmt(Number(v))} talleres`, byName[String(k)]]}
+              formatter={(v, k) => [`${fmt(Number(v))} servicios`, byName[String(k)]]}
               labelFormatter={(l) => `Mes: ${l}`}
               contentStyle={{ borderRadius: 10, border: '1px solid #E3E6EB', fontSize: 12 }} />
             {series.map((p) => (

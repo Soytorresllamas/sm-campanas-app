@@ -61,7 +61,16 @@ const volOf = (k: string): number => {
   return p.vol;
 };
 
-export interface Defaults {
+export interface CostInputs {
+  /** Costo unitario por servicio (MXN). */
+  costoUso: number; costoProf: number; costoDidac: number;
+  /** Costo por traslado (MXN). */
+  costoTraslado: number;
+  /** % de servicios de cada tipo que requieren traslado (0-100). */
+  propTrasUso: number; propTrasProf: number; propTrasDidac: number;
+}
+
+export interface Defaults extends CostInputs {
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
   tUso: number; tProf: number; tAdic: number;
   vUso: number; vProf: number; vAdicS: number; vAdicC: number;
@@ -73,6 +82,9 @@ export const DEFAULTS: Defaults = {
   tUso:3, tProf:3, tAdic:1,
   vUso:volOf("Su"), vProf:volOf("Sp"), vAdicS:volOf("Sd"), vAdicC:volOf("Cd"),
   retS:94, retC:89,
+  // costos: didácticas $3,750 y traslados $1,500; uso/prof en 0. Solo didácticas viajan (40%).
+  costoUso:0, costoProf:0, costoDidac:3750, costoTraslado:1500,
+  propTrasUso:0, propTrasProf:0, propTrasDidac:40,
 };
 
 export const genCurve = (focal: number, spread: number, win: [number, number]): number[] => {
@@ -83,7 +95,7 @@ export const genCurve = (focal: number, spread: number, win: [number, number]): 
 const norm = (a: number[]): number[] => { const s = a.reduce((x, y) => x + y, 0) || 1; return a.map((v) => v / s); };
 export const R = (x: number): number => Math.round(x);
 
-export interface ComputeInput {
+export interface ComputeInput extends CostInputs {
   curves: Curves;
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
   tUso: number; tProf: number; tAdic: number;
@@ -97,6 +109,26 @@ export interface MonthRow {
   smart: number; core: number; up: number; cap: number;
   cov: number; extUP: number; adicExt: number; totExt: number; util: number;
   ret: number; conq: number; retSmart: number; conqSmart: number; retCore: number; conqCore: number;
+  /** Costo del mes: servicios, traslados y total. */
+  costServ: number; costTras: number; costTot: number;
+}
+
+export type CostTypeKey = "uso" | "prof" | "didac";
+export interface CostBreakdownRow {
+  key: CostTypeKey;
+  label: string;
+  n: number;               // # de servicios de este tipo (anual)
+  costoServicio: number;   // Nₛ × costo unitario
+  traslados: number;       // # de traslados (Nₛ × proporción)
+  costoTraslados: number;  // traslados × costo por traslado
+  total: number;           // costoServicio + costoTraslados
+}
+export interface Costs {
+  byType: CostBreakdownRow[];
+  servicios: number;   // costo total de servicios
+  traslados: number;   // costo total de traslados
+  trasladosN: number;  // # total de traslados
+  total: number;       // servicios + traslados
 }
 
 export interface ComputeKpis {
@@ -106,6 +138,7 @@ export interface ComputeKpis {
   totSmart: number; totCore: number;
   totRetSmart: number; totConqSmart: number; totRetCore: number; totConqCore: number;
   pctConqSmart: number; pctConqCore: number;
+  costs: Costs;
 }
 
 export interface ComputeResult {
@@ -117,6 +150,8 @@ export function compute(st: ComputeInput): ComputeResult {
   const cap = st.nAse * st.tDay * st.dWeek * st.wMonth;
   const cu = norm(st.curves.uso), cp = norm(st.curves.prof), cas = norm(st.curves.adicS), cac = norm(st.curves.adicC);
   const rS = (st.retS || 0) / 100, rC = (st.retC || 0) / 100;
+  // proporciones de traslado a fracción (0-1)
+  const pTU = (st.propTrasUso || 0) / 100, pTP = (st.propTrasProf || 0) / 100, pTD = (st.propTrasDidac || 0) / 100;
   const rows: MonthRow[] = [];
   for (let i = 0; i < 12; i++) {
     const usoT = st.vUso * cu[i] * st.tUso, profT = st.vProf * cp[i] * st.tProf;
@@ -126,9 +161,15 @@ export function compute(st: ComputeInput): ComputeResult {
     const retSmart = smart * rS, conqSmart = smart * (1 - rS);
     const retCore = core * rC, conqCore = core * (1 - rC);
     const ret = retSmart + retCore, conq = conqSmart + conqCore;
+    // costos del mes: servicios por tipo + traslados (proporción de cada tipo × costo por traslado)
+    const didacT = adicST + adicCT;
+    const costServ = usoT * st.costoUso + profT * st.costoProf + didacT * st.costoDidac;
+    const trasN = usoT * pTU + profT * pTP + didacT * pTD;
+    const costTras = trasN * st.costoTraslado;
     rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, smart, core, up, cap, cov, extUP, adicExt,
       totExt: extUP + adicExt, util: cap ? cov / cap : 0,
-      ret, conq, retSmart, conqSmart, retCore, conqCore });
+      ret, conq, retSmart, conqSmart, retCore, conqCore,
+      costServ, costTras, costTot: costServ + costTras });
   }
   const sum = (f: (x: MonthRow) => number) => rows.reduce((s, x) => s + f(x), 0);
   const totalT = sum((x) => x.smart + x.core);
@@ -140,6 +181,21 @@ export function compute(st: ComputeInput): ComputeResult {
   const totRetSmart = sum((x) => x.retSmart), totConqSmart = sum((x) => x.conqSmart);
   const totRetCore = sum((x) => x.retCore), totConqCore = sum((x) => x.conqCore);
   const conqPeak = rows.reduce((a, b) => b.conq > a.conq ? b : a);
+  // desglose de costos por tipo de servicio (anual)
+  const nUso = sum((x) => x.usoT), nProf = sum((x) => x.profT), nDidac = sum((x) => x.adicST + x.adicCT);
+  const costRow = (key: CostTypeKey, label: string, n: number, costoUnit: number, prop: number): CostBreakdownRow => {
+    const traslados = n * prop, costoServicio = n * costoUnit, costoTraslados = traslados * st.costoTraslado;
+    return { key, label, n, costoServicio, traslados, costoTraslados, total: costoServicio + costoTraslados };
+  };
+  const byType: CostBreakdownRow[] = [
+    costRow("uso", "Uso", nUso, st.costoUso, pTU),
+    costRow("prof", "Profundización", nProf, st.costoProf, pTP),
+    costRow("didac", "Didácticas específicas", nDidac, st.costoDidac, pTD),
+  ];
+  const costServicios = byType.reduce((s, r) => s + r.costoServicio, 0);
+  const costTrasCost = byType.reduce((s, r) => s + r.costoTraslados, 0);
+  const trasladosN = byType.reduce((s, r) => s + r.traslados, 0);
+  const costs: Costs = { byType, servicios: costServicios, traslados: costTrasCost, trasladosN, total: costServicios + costTrasCost };
   const k: ComputeKpis = {
     cap, totalT, peak, extPeak, meses,
     utilA: cap ? sum((x) => x.cov) / (cap * 12) : 0,
@@ -150,6 +206,7 @@ export function compute(st: ComputeInput): ComputeResult {
     totSmart, totCore, totRetSmart, totConqSmart, totRetCore, totConqCore,
     pctConqSmart: totSmart ? totConqSmart / totSmart : 0,
     pctConqCore: totCore ? totConqCore / totCore : 0,
+    costs,
   };
   return { rows, k };
 }

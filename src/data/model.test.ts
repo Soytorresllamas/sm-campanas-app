@@ -138,3 +138,64 @@ describe('regresión: SERVICE_PROFILES es la única fuente de los volúmenes', (
     expect(DEFAULTS.vAdicC).toBe(1745);
   });
 });
+
+describe('compute — costos', () => {
+  it('semillas por defecto: didácticas $3,750, uso/prof $0, traslado $1,500, didác 40%', () => {
+    expect(DEFAULTS.costoDidac).toBe(3750);
+    expect(DEFAULTS.costoUso).toBe(0);
+    expect(DEFAULTS.costoProf).toBe(0);
+    expect(DEFAULTS.costoTraslado).toBe(1500);
+    expect(DEFAULTS.propTrasUso).toBe(0);
+    expect(DEFAULTS.propTrasProf).toBe(0);
+    expect(DEFAULTS.propTrasDidac).toBe(40);
+  });
+
+  it('el # de servicios por tipo = volumen × servicios/colegio (las curvas normalizan a 1)', () => {
+    const { k } = compute(baseInput());
+    const byKey = Object.fromEntries(k.costs.byType.map((r) => [r.key, r]));
+    expect(byKey.uso.n).toBeCloseTo(DEFAULTS.vUso * DEFAULTS.tUso, 6);       // 458×3
+    expect(byKey.prof.n).toBeCloseTo(DEFAULTS.vProf * DEFAULTS.tProf, 6);    // 321×3
+    expect(byKey.didac.n).toBeCloseTo((DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic, 6); // 1905×1
+  });
+
+  it('costo de servicios = Σ (Nₛ × costo unitario); con las semillas solo didácticas cuestan', () => {
+    const { k } = compute(baseInput());
+    const nDidac = (DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic;
+    expect(k.costs.servicios).toBeCloseTo(nDidac * 3750, 4); // 1905 × 3750 = 7,143,750
+    expect(k.costs.servicios).toBeCloseTo(7143750, 4);
+  });
+
+  it('costo de traslados = Σ (Nₛ × proporción) × costo por traslado; solo didácticas al 40%', () => {
+    const { k } = compute(baseInput());
+    const nDidac = (DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic;
+    expect(k.costs.trasladosN).toBeCloseTo(nDidac * 0.4, 6);          // 762 traslados
+    expect(k.costs.traslados).toBeCloseTo(nDidac * 0.4 * 1500, 4);    // 762 × 1500 = 1,143,000
+  });
+
+  it('costo total = servicios + traslados, y coincide con la suma mensual', () => {
+    const { rows, k } = compute(baseInput());
+    expect(k.costs.total).toBeCloseTo(k.costs.servicios + k.costs.traslados, 4);
+    const monthlyServ = rows.reduce((s, r) => s + r.costServ, 0);
+    const monthlyTras = rows.reduce((s, r) => s + r.costTras, 0);
+    const monthlyTot = rows.reduce((s, r) => s + r.costTot, 0);
+    expect(monthlyServ).toBeCloseTo(k.costs.servicios, 4);
+    expect(monthlyTras).toBeCloseTo(k.costs.traslados, 4);
+    expect(monthlyTot).toBeCloseTo(k.costs.total, 4);
+  });
+
+  it('con todos los costos y proporciones en 0, el costo total es 0', () => {
+    const { k } = compute(baseInput({
+      costoUso: 0, costoProf: 0, costoDidac: 0, costoTraslado: 0,
+      propTrasUso: 0, propTrasProf: 0, propTrasDidac: 0,
+    }));
+    expect(k.costs.total).toBe(0);
+    expect(k.costs.trasladosN).toBe(0);
+  });
+
+  it('las proporciones de traslado no alteran el costo de servicios', () => {
+    const a = compute(baseInput({ propTrasUso: 0, propTrasProf: 0, propTrasDidac: 0 }));
+    const b = compute(baseInput({ propTrasUso: 100, propTrasProf: 100, propTrasDidac: 100 }));
+    expect(a.k.costs.servicios).toBeCloseTo(b.k.costs.servicios, 4);
+    expect(b.k.costs.traslados).toBeGreaterThan(a.k.costs.traslados);
+  });
+});
