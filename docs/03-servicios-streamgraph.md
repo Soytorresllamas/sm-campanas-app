@@ -17,8 +17,9 @@ Es la vista "Servicios (streamgraph)": muestra el **flujo de servicios por mes**
 | `Cu` | CORE | Uso | 1047 | `curve` propia (14 meses) |
 | `Cp` | CORE | Profundización | 733 | `curve` propia (14 meses) |
 
-- Los 4 primeros usan la **misma curva mensual** que el simulador (`DEF_CURVES`) → el simulador y el streamgraph **no pueden divergir** en esos perfiles. Es la clave de la "fuente única de verdad".
-- Los 2 de CORE (uso/prof) son **adopción aguas abajo del verano 2027** y traen `curve` propia; **no** existen en el simulador operativo.
+- Los 4 primeros leen su curva mensual de `DEF_CURVES` (`uso`/`prof`/`adicS`/`adicC`). ⚠️ **Estas curvas ya NO se comparten con el Simulador**: desde la simplificación de jul 2026 el Simulador usa **2 curvas por campaña** (`smart`/`core`), mientras el streamgraph conserva las curvas por tipo. Son vistas con modelos distintos a propósito.
+- Los 2 de CORE (uso/prof) son **adopción aguas abajo del verano 2027** y traen `curve` propia de 14 meses.
+- Los **volúmenes** salen de `SERVICE_PROFILES` (6 perfiles: 458/321/160/1745/1047/733), independientes de los 2 volúmenes por campaña del Simulador (`vSmart`/`vCore`).
 
 ## 2. Eje de 14 meses y alineación
 El eje va de Sep'26 a Oct'27 (14 meses). Los meses del modelo (`DEF_CURVES`, Oct'26→Sep'27) se alinean a los **índices 1..12**; Sep'26 (0) y Oct'27 (13) quedan fuera de la ventana operativa. `bandFor(p)` arma la banda: si el perfil tiene `src`, mapea la curva del modelo a esos índices; si tiene `curve`, la usa directo. Todo normalizado al volumen real del perfil.

@@ -1,7 +1,7 @@
 export const MONTHS = ["Oct","Nov","Dic","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep"] as const;
 export type MonthLabel = (typeof MONTHS)[number];
 
-export type CurveKey = "uso" | "prof" | "adicS" | "adicC";
+export type CurveKey = "uso" | "prof" | "adicS" | "adicC" | "smart" | "core";
 
 export interface Stream {
   k: CurveKey;
@@ -11,21 +11,23 @@ export interface Stream {
   spread: number;
 }
 
-// Etiquetas visibles: "Adicionales" se renombró a "Didácticas específicas".
+// Curvas de cierre del Simulador: una por campaña (SMART temprana, CORE tardía).
 export const STREAMS: Stream[] = [
-  { k: "uso",   lbl: "SMART · uso",             win: [0,4], focal: 1, spread: 1.2 },
-  { k: "prof",  lbl: "SMART · profundización",  win: [2,6], focal: 4, spread: 1.4 },
-  { k: "adicS", lbl: "SMART · didácticas esp.", win: [5,8], focal: 6, spread: 1.2 },
-  { k: "adicC", lbl: "CORE · didácticas esp.",  win: [3,9], focal: 5, spread: 1.8 },
+  { k: "smart", lbl: "SMART", win: [0,8],  focal: 3, spread: 2 },
+  { k: "core",  lbl: "CORE",  win: [3,11], focal: 8, spread: 2.2 },
 ];
 
 export type Curves = Record<CurveKey, number[]>;
 
 export const DEF_CURVES: Curves = {
+  // uso/prof/adicS/adicC: curvas por tipo que alimentan el STREAMGRAPH (perfiles distintos).
   uso:  [.30,.35,.07,.08,.20,0,0,0,0,0,0,0],
   prof: [0,0,.10,.20,.25,.25,.20,0,0,0,0,0],
   adicS:[0,0,0,0,0,.25,.30,.25,.20,0,0,0],
   adicC:[0,0,0,.05,.10,.28,.27,.15,.10,.05,0,0],
+  // smart/core: una curva de cierre por campaña para el SIMULADOR (SMART temprana, CORE tardía).
+  smart:[.30,.55,.80,1,.90,.65,.40,.20,0,0,0,0],
+  core: [0,0,0,.20,.40,.65,.85,.98,1,.90,.70,.45],
 };
 
 export type Campaign = "SMART" | "CORE";
@@ -55,12 +57,6 @@ export const SERVICE_PROFILES: ServiceProfile[] = [
   { k: "Cu", camp: "CORE",  name: "Uso",                 vol: 1047, fill: "#63AE9D", curve: [0,0,0,0,0,0,0,.02,.06,.14,.24,.26,.18,.10] },
   { k: "Cp", camp: "CORE",  name: "Profundización",      vol: 733,  fill: "#AAD0C8", curve: [0,0,0,0,0,0,0,0,.02,.06,.12,.22,.30,.28] },
 ];
-const volOf = (k: string): number => {
-  const p = SERVICE_PROFILES.find((p) => p.k === k);
-  if (!p) throw new Error(`Perfil de servicio desconocido: ${k}`);
-  return p.vol;
-};
-
 export interface CostInputs {
   /** Costo unitario por servicio (MXN). */
   costoUso: number; costoProf: number; costoDidac: number;
@@ -72,15 +68,23 @@ export interface CostInputs {
 
 export interface Defaults extends CostInputs {
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
-  tUso: number; tProf: number; tAdic: number;
-  vUso: number; vProf: number; vAdicS: number; vAdicC: number;
+  /** Volumen de colegios por campaña. */
+  vSmart: number; vCore: number;
+  /** Servicios/colegio por tipo (SMART y CORE). */
+  tUsoS: number; tProfS: number; tAdicS: number;
+  tUsoC: number; tProfC: number; tAdicC: number;
+  /** % de CORE uso/prof que atienden empleados (0-100); el resto va con externos. */
+  propEmpCoreUP: number;
   retS: number; retC: number;
 }
 
 export const DEFAULTS: Defaults = {
   nAse:10, tDay:2, dWeek:5, wMonth:4.33, prodExt:30,
-  tUso:3, tProf:3, tAdic:1,
-  vUso:volOf("Su"), vProf:volOf("Sp"), vAdicS:volOf("Sd"), vAdicC:volOf("Cd"),
+  // volumen de colegios por campaña y servicios/colegio por tipo (SMART y CORE)
+  vSmart:321, vCore:1047,
+  tUsoS:3, tProfS:3, tAdicS:1,
+  tUsoC:3, tProfC:3, tAdicC:1,
+  propEmpCoreUP:0,
   retS:94, retC:89,
   // costos: didácticas $3,750 y traslados $1,500; uso/prof en 0. Solo didácticas viajan (40%).
   costoUso:0, costoProf:0, costoDidac:3750, costoTraslado:1500,
@@ -98,16 +102,19 @@ export const R = (x: number): number => Math.round(x);
 export interface ComputeInput extends CostInputs {
   curves: Curves;
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
-  tUso: number; tProf: number; tAdic: number;
-  vUso: number; vProf: number; vAdicS: number; vAdicC: number;
+  vSmart: number; vCore: number;
+  tUsoS: number; tProfS: number; tAdicS: number;
+  tUsoC: number; tProfC: number; tAdicC: number;
+  propEmpCoreUP: number;
   retS: number; retC: number;
 }
 
 export interface MonthRow {
   m: MonthLabel;
   usoT: number; profT: number; adicST: number; adicCT: number;
+  usoCT: number; profCT: number;
   smart: number; core: number; up: number; cap: number;
-  cov: number; extUP: number; adicExt: number; totExt: number; util: number;
+  cov: number; extUP: number; extCoreUP: number; adicExt: number; totExt: number; util: number;
   ret: number; conq: number; retSmart: number; conqSmart: number; retCore: number; conqCore: number;
   /** Costo del mes: servicios, traslados y total. */
   costServ: number; costTras: number; costTot: number;
@@ -148,26 +155,36 @@ export interface ComputeResult {
 
 export function compute(st: ComputeInput): ComputeResult {
   const cap = st.nAse * st.tDay * st.dWeek * st.wMonth;
-  const cu = norm(st.curves.uso), cp = norm(st.curves.prof), cas = norm(st.curves.adicS), cac = norm(st.curves.adicC);
+  const cS = norm(st.curves.smart), cC = norm(st.curves.core);
   const rS = (st.retS || 0) / 100, rC = (st.retC || 0) / 100;
+  // fracción de CORE uso/prof que atienden empleados; el resto va directo con externos
+  const eCore = (st.propEmpCoreUP || 0) / 100;
   // proporciones de traslado a fracción (0-1)
   const pTU = (st.propTrasUso || 0) / 100, pTP = (st.propTrasProf || 0) / 100, pTD = (st.propTrasDidac || 0) / 100;
   const rows: MonthRow[] = [];
   for (let i = 0; i < 12; i++) {
-    const usoT = st.vUso * cu[i] * st.tUso, profT = st.vProf * cp[i] * st.tProf;
-    const adicST = st.vAdicS * cas[i] * st.tAdic, adicCT = st.vAdicC * cac[i] * st.tAdic;
-    const smart = usoT + profT + adicST, core = adicCT, up = usoT + profT;
-    const cov = Math.min(up, cap), extUP = Math.max(0, up - cap), adicExt = adicST + adicCT;
+    const usoT = st.vSmart * cS[i] * st.tUsoS, profT = st.vSmart * cS[i] * st.tProfS;
+    const adicST = st.vSmart * cS[i] * st.tAdicS;
+    const usoCT = st.vCore * cC[i] * st.tUsoC, profCT = st.vCore * cC[i] * st.tProfC;
+    const adicCT = st.vCore * cC[i] * st.tAdicC;
+    const coreUP = usoCT + profCT;
+    const smart = usoT + profT + adicST, core = adicCT + usoCT + profCT;
+    // demanda de uso/prof sobre empleados: SMART siempre + la fracción de CORE que se decida
+    const up = usoT + profT + coreUP * eCore;
+    const cov = Math.min(up, cap), extUP = Math.max(0, up - cap);
+    const extCoreUP = coreUP * (1 - eCore);          // CORE uso/prof que va directo a externos
+    const adicExt = adicST + adicCT;
     const retSmart = smart * rS, conqSmart = smart * (1 - rS);
     const retCore = core * rC, conqCore = core * (1 - rC);
     const ret = retSmart + retCore, conq = conqSmart + conqCore;
-    // costos del mes: servicios por tipo + traslados (proporción de cada tipo × costo por traslado)
+    // costos del mes: uso/prof incluyen CORE; didácticas SMART+CORE
     const didacT = adicST + adicCT;
-    const costServ = usoT * st.costoUso + profT * st.costoProf + didacT * st.costoDidac;
-    const trasN = usoT * pTU + profT * pTP + didacT * pTD;
+    const usoAll = usoT + usoCT, profAll = profT + profCT;
+    const costServ = usoAll * st.costoUso + profAll * st.costoProf + didacT * st.costoDidac;
+    const trasN = usoAll * pTU + profAll * pTP + didacT * pTD;
     const costTras = trasN * st.costoTraslado;
-    rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, smart, core, up, cap, cov, extUP, adicExt,
-      totExt: extUP + adicExt, util: cap ? cov / cap : 0,
+    rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, usoCT, profCT, smart, core, up, cap, cov, extUP, extCoreUP, adicExt,
+      totExt: extUP + extCoreUP + adicExt, util: cap ? cov / cap : 0,
       ret, conq, retSmart, conqSmart, retCore, conqCore,
       costServ, costTras, costTot: costServ + costTras });
   }
@@ -182,7 +199,7 @@ export function compute(st: ComputeInput): ComputeResult {
   const totRetCore = sum((x) => x.retCore), totConqCore = sum((x) => x.conqCore);
   const conqPeak = rows.reduce((a, b) => b.conq > a.conq ? b : a);
   // desglose de costos por tipo de servicio (anual)
-  const nUso = sum((x) => x.usoT), nProf = sum((x) => x.profT), nDidac = sum((x) => x.adicST + x.adicCT);
+  const nUso = sum((x) => x.usoT + x.usoCT), nProf = sum((x) => x.profT + x.profCT), nDidac = sum((x) => x.adicST + x.adicCT);
   const costRow = (key: CostTypeKey, label: string, n: number, costoUnit: number, prop: number): CostBreakdownRow => {
     const traslados = n * prop, costoServicio = n * costoUnit, costoTraslados = traslados * st.costoTraslado;
     return { key, label, n, costoServicio, traslados, costoTraslados, total: costoServicio + costoTraslados };

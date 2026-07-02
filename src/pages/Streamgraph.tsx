@@ -119,9 +119,9 @@ export default function Streamgraph() {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <div className="hint">Volúmenes reales y curvas de SMART + CORE didácticas tomados del <b>mismo modelo que alimenta el
-        Simulador</b> (una sola fuente de verdad). Las curvas de uso y profundización de CORE modelan la adopción
-        aguas abajo en el verano 2027, fuera de la ventana operativa del simulador.</div>
+      <div className="hint">Volúmenes reales por perfil de <b>SERVICE_PROFILES</b> (el mismo modelo del proyecto). Esta vista usa
+        curvas por tipo de servicio; el Simulador usa una curva por campaña. Las curvas de uso y profundización de CORE
+        modelan la adopción aguas abajo en el verano 2027.</div>
     </div>
   )
 }

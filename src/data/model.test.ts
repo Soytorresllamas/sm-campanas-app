@@ -60,7 +60,7 @@ describe('compute — capacidad', () => {
 
 describe('compute — volúmenes en cero', () => {
   it('con todos los volúmenes en 0, los totales son 0 y pctConq es 0 (no NaN)', () => {
-    const { rows, k } = compute(baseInput({ vUso: 0, vProf: 0, vAdicS: 0, vAdicC: 0 }));
+    const { rows, k } = compute(baseInput({ vSmart: 0, vCore: 0 }));
     expect(k.totalT).toBe(0);
     expect(k.totSmart).toBe(0);
     expect(k.totCore).toBe(0);
@@ -98,9 +98,9 @@ describe('compute — retención vs conquista por campaña', () => {
 
 describe('compute — selección de mes pico', () => {
   it('identifica el mes con mayor smart+core como "peak"', () => {
-    // curva de uso 100% concentrada en un solo mes (índice 3 => "Ene")
-    const curves: Curves = { ...DEF_CURVES, uso: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], prof: [0,0,0,0,0,0,0,0,0,0,0,0], adicS: [0,0,0,0,0,0,0,0,0,0,0,0], adicC: [0,0,0,0,0,0,0,0,0,0,0,0] };
-    const { k } = compute(baseInput({ curves, vProf: 0, vAdicS: 0, vAdicC: 0 }));
+    // curva SMART 100% concentrada en un solo mes (índice 3 => "Ene"), sin CORE
+    const curves: Curves = { ...DEF_CURVES, smart: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], core: [0,0,0,0,0,0,0,0,0,0,0,0] };
+    const { k } = compute(baseInput({ curves, vCore: 0 }));
     expect(k.peak.m).toBe(MONTHS[3]);
   });
 });
@@ -123,19 +123,12 @@ describe('compute — con los DEFAULTS reales del proyecto', () => {
   });
 });
 
-describe('regresión: SERVICE_PROFILES es la única fuente de los volúmenes', () => {
+describe('regresión: SERVICE_PROFILES alimenta el streamgraph', () => {
   // Bug real ya corregido una vez: CORE·didácticas aparecía como 1500 en el streamgraph
   // y 1745 en el simulador porque los volúmenes estaban duplicados a mano.
-  it('DEFAULTS deriva sus volúmenes de SERVICE_PROFILES, no de números sueltos', () => {
-    const byKey = Object.fromEntries(SERVICE_PROFILES.map((p) => [p.k, p.vol]));
-    expect(DEFAULTS.vUso).toBe(byKey.Su);
-    expect(DEFAULTS.vProf).toBe(byKey.Sp);
-    expect(DEFAULTS.vAdicS).toBe(byKey.Sd);
-    expect(DEFAULTS.vAdicC).toBe(byKey.Cd);
-  });
-
   it('el volumen de CORE · didácticas específicas es 1745 (no 1500)', () => {
-    expect(DEFAULTS.vAdicC).toBe(1745);
+    const cd = SERVICE_PROFILES.find((p) => p.k === 'Cd');
+    expect(cd?.vol).toBe(1745);
   });
 });
 
@@ -153,23 +146,24 @@ describe('compute — costos', () => {
   it('el # de servicios por tipo = volumen × servicios/colegio (las curvas normalizan a 1)', () => {
     const { k } = compute(baseInput());
     const byKey = Object.fromEntries(k.costs.byType.map((r) => [r.key, r]));
-    expect(byKey.uso.n).toBeCloseTo(DEFAULTS.vUso * DEFAULTS.tUso, 6);       // 458×3
-    expect(byKey.prof.n).toBeCloseTo(DEFAULTS.vProf * DEFAULTS.tProf, 6);    // 321×3
-    expect(byKey.didac.n).toBeCloseTo((DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic, 6); // 1905×1
+    // cubetas por tipo: SMART (vSmart×serv) + CORE (vCore×serv)
+    expect(byKey.uso.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tUsoS + DEFAULTS.vCore * DEFAULTS.tUsoC, 6);    // 321×3 + 1047×3
+    expect(byKey.prof.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tProfS + DEFAULTS.vCore * DEFAULTS.tProfC, 6); // 321×3 + 1047×3
+    expect(byKey.didac.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC, 6); // 321×1 + 1047×1
   });
 
   it('costo de servicios = Σ (Nₛ × costo unitario); con las semillas solo didácticas cuestan', () => {
     const { k } = compute(baseInput());
-    const nDidac = (DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic;
-    expect(k.costs.servicios).toBeCloseTo(nDidac * 3750, 4); // 1905 × 3750 = 7,143,750
-    expect(k.costs.servicios).toBeCloseTo(7143750, 4);
+    const nDidac = DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC; // 321 + 1047 = 1368
+    expect(k.costs.servicios).toBeCloseTo(nDidac * 3750, 4); // 1368 × 3750 = 5,130,000
+    expect(k.costs.servicios).toBeCloseTo(5130000, 4);
   });
 
   it('costo de traslados = Σ (Nₛ × proporción) × costo por traslado; solo didácticas al 40%', () => {
     const { k } = compute(baseInput());
-    const nDidac = (DEFAULTS.vAdicS + DEFAULTS.vAdicC) * DEFAULTS.tAdic;
-    expect(k.costs.trasladosN).toBeCloseTo(nDidac * 0.4, 6);          // 762 traslados
-    expect(k.costs.traslados).toBeCloseTo(nDidac * 0.4 * 1500, 4);    // 762 × 1500 = 1,143,000
+    const nDidac = DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC; // 1368
+    expect(k.costs.trasladosN).toBeCloseTo(nDidac * 0.4, 6);          // 547.2 traslados
+    expect(k.costs.traslados).toBeCloseTo(nDidac * 0.4 * 1500, 4);    // 547.2 × 1500 = 820,800
   });
 
   it('costo total = servicios + traslados, y coincide con la suma mensual', () => {
@@ -197,5 +191,53 @@ describe('compute — costos', () => {
     const b = compute(baseInput({ propTrasUso: 100, propTrasProf: 100, propTrasDidac: 100 }));
     expect(a.k.costs.servicios).toBeCloseTo(b.k.costs.servicios, 4);
     expect(b.k.costs.traslados).toBeGreaterThan(a.k.costs.traslados);
+  });
+});
+
+describe('compute — modelo por campaña (SMART/CORE)', () => {
+  it('semillas: volúmenes 321/1047, 3/3/1 servicios/colegio, 0% CORE uso/prof a empleados', () => {
+    expect(DEFAULTS.vSmart).toBe(321);
+    expect(DEFAULTS.vCore).toBe(1047);
+    expect(DEFAULTS.tUsoS).toBe(3); expect(DEFAULTS.tProfS).toBe(3); expect(DEFAULTS.tAdicS).toBe(1);
+    expect(DEFAULTS.tUsoC).toBe(3); expect(DEFAULTS.tProfC).toBe(3); expect(DEFAULTS.tAdicC).toBe(1);
+    expect(DEFAULTS.propEmpCoreUP).toBe(0);
+  });
+
+  it('cada campaña = volumen × (uso+prof+didác); total 9576', () => {
+    const { k } = compute(baseInput());
+    const smart = DEFAULTS.vSmart * (DEFAULTS.tUsoS + DEFAULTS.tProfS + DEFAULTS.tAdicS); // 321×7 = 2247
+    const core = DEFAULTS.vCore * (DEFAULTS.tUsoC + DEFAULTS.tProfC + DEFAULTS.tAdicC);   // 1047×7 = 7329
+    expect(k.totSmart).toBeCloseTo(smart, 4);
+    expect(k.totCore).toBeCloseTo(core, 4);
+    expect(k.totalT).toBeCloseTo(9576, 4);
+  });
+
+  it('con vCore=0 no hay CORE y SMART queda intacto', () => {
+    const base = compute(baseInput());
+    const soloSmart = compute(baseInput({ vCore: 0 }));
+    expect(soloSmart.k.totCore).toBe(0);
+    expect(base.k.totSmart).toBeCloseTo(soloSmart.k.totSmart, 6);
+  });
+
+  it('con 0% a empleados (semilla), CORE uso/prof van a externos y no tocan la capacidad', () => {
+    const base = compute(baseInput());
+    const soloSmart = compute(baseInput({ vCore: 0 }));
+    // la cobertura por empleados (cov) es idéntica con o sin CORE (uso/prof CORE no entra a empleados)
+    base.rows.forEach((r, i) => expect(r.cov).toBeCloseTo(soloSmart.rows[i].cov, 6));
+    expect(base.k.utilA).toBeCloseTo(soloSmart.k.utilA, 6);
+    // y todo CORE uso/prof aparece como externo: 1047×3 + 1047×3 = 6282
+    const extCore = base.rows.reduce((s, r) => s + r.extCoreUP, 0);
+    expect(extCore).toBeCloseTo(6282, 4);
+  });
+
+  it('con 100% CORE uso/prof a empleados, extCoreUP es 0 y up incluye CORE', () => {
+    const { rows } = compute(baseInput({ propEmpCoreUP: 100 }));
+    rows.forEach((r) => expect(r.extCoreUP).toBeCloseTo(0, 6));
+    rows.forEach((r) => expect(r.up).toBeGreaterThanOrEqual(r.usoT + r.profT - 1e-6));
+  });
+
+  it('totExt = extUP + extCoreUP + adicExt en cada mes', () => {
+    const { rows } = compute(baseInput());
+    rows.forEach((r) => expect(r.totExt).toBeCloseTo(r.extUP + r.extCoreUP + r.adicExt, 6));
   });
 });

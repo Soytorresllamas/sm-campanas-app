@@ -1,24 +1,27 @@
 # 01 · Modelo de cálculo y Simulador
 
-**Archivos:** `src/data/model.ts` (toda la lógica, tipada y testeada) · `src/data/model.test.ts` (23 pruebas) · `src/pages/Simulador.tsx` (la UI que lo muestra).
+**Archivos:** `src/data/model.ts` (toda la lógica, tipada y testeada) · `src/data/model.test.ts` (28 pruebas) · `src/pages/Simulador.tsx` (la UI que lo muestra).
 
 El modelo es la **fuente única de verdad** del proyecto: el Simulador y la vista Servicios/streamgraph leen de aquí. Todo el cálculo vive en `compute(input)` y las semillas en `DEFAULTS`. **Si tocas una fórmula, corre `npm test`** — las pruebas fijan los invariantes.
 
 ---
 
-## 1. Los tres tipos de servicio
+## 1. Modelo por campaña: 2 volúmenes × 3 tipos de servicio
 
-El plan comercial se reduce a **tres tipos de servicio** (antes se llamaban "talleres"):
+El modelo es **"una vez por campaña"**: hay **un volumen de colegios por campaña** (`vSmart`, `vCore`) y cada colegio recibe uso + profundización + didácticas según sus **servicios/colegio por tipo** (rejilla 2×3). Los servicios se llaman "servicios" (antes "talleres").
 
-| Tipo | Campañas que lo generan | Volumen de colegios (default) | Servicios/colegio |
-|---|---|---|---|
-| **Uso** | SMART | `vUso` = 458 | `tUso` |
-| **Profundización** | SMART | `vProf` = 321 | `tProf` |
-| **Didácticas específicas** | SMART + CORE | `vAdicS` = 160 · `vAdicC` = 1745 | `tAdic` |
+| | Volumen (colegios) | Uso | Profund. | Didác. |
+|---|---|---|---|---|
+| **SMART** | `vSmart` = 321 | `tUsoS` = 3 | `tProfS` = 3 | `tAdicS` = 1 |
+| **CORE** | `vCore` = 1047 | `tUsoC` = 3 | `tProfC` = 3 | `tAdicC` = 1 |
 
-> ⚠️ CORE aporta **solo** didácticas al ciclo operativo. El uso/profundización de CORE (perfiles de 1047 y 733 del streamgraph) es "adopción aguas abajo del verano 2027", **fuera** del simulador → **no** entra a coberturas ni a costos.
+`servicios_tipo = volumen_campaña × curva_campaña × servicios/colegio_tipo`.
 
-Los volúmenes salen de `SERVICE_PROFILES` (no los dupliques). `DEFAULTS.vUso = volOf("Su")`, etc.
+Total del ciclo con las semillas: **9,576 servicios** = SMART 321×7 (2,247) + CORE 1047×7 (7,329).
+
+> ℹ️ **Simplificación (jul 2026):** antes había 6 volúmenes sueltos por tipo y una curva por tipo. Ahora son **2 volúmenes** (uno por campaña) y **2 curvas de cierre** (una por campaña). Todos los servicios de una campaña comparten su volumen y su curva.
+
+> ⚠️ El **streamgraph** NO usa esta simplificación: sigue leyendo `SERVICE_PROFILES` (6 perfiles con sus propios volúmenes 458/321/160/1745/1047/733) y las curvas por tipo `uso/prof/adicS/adicC` + `Cu/Cp`. Son dos vistas con modelos distintos a propósito; no se sincronizan.
 
 ---
 
@@ -26,8 +29,8 @@ Los volúmenes salen de `SERVICE_PROFILES` (no los dupliques). `DEFAULTS.vUso = 
 
 Cada tipo tiene una **curva de 12 meses** (Oct→Sep) que reparte su volumen anual en el tiempo. Las curvas se **normalizan** (`norm`) para que sumen 1: así el total anual = volumen × servicios/colegio, sin importar la forma de la curva.
 
-- `DEF_CURVES` = curvas base por defecto (`uso`, `prof`, `adicS`, `adicC`).
-- El panel "Curvas de cierre" del simulador genera curvas gaussianas con `genCurve(focal, spread, win)` y las mete en el estado `curves`.
+- `DEF_CURVES` tiene **6 claves con dos propósitos**: `smart`/`core` las usa el **Simulador** (una curva de cierre por campaña, SMART temprana y CORE tardía); `uso`/`prof`/`adicS`/`adicC` las usa el **streamgraph** (curvas por tipo). No se mezclan.
+- El panel "Curvas de cierre" del simulador (solo **SMART** y **CORE**) genera curvas gaussianas con `genCurve(focal, spread, win)` y las mete en el estado `curves`.
 - **Invariante:** como `norm` normaliza, cambiar la forma de una curva **mueve** los servicios entre meses pero **no cambia** el total anual ni el costo total. Solo cambia los picos.
 
 ---
@@ -36,27 +39,33 @@ Cada tipo tiene una **curva de 12 meses** (Oct→Sep) que reparte su volumen anu
 
 Para cada mes `i`:
 
+`cS = norm(curves.smart)`, `cC = norm(curves.core)` (una curva por campaña).
 ```
-usoT   = vUso  × cu[i] × tUso           // servicios de Uso ese mes (SMART)
-profT  = vProf × cp[i] × tProf          // Profundización (SMART)
-adicST = vAdicS × cas[i] × tAdic        // Didácticas SMART
-adicCT = vAdicC × cac[i] × tAdic        // Didácticas CORE
+usoT   = vSmart × cS[i] × tUsoS          // Uso SMART
+profT  = vSmart × cS[i] × tProfS         // Profundización SMART
+adicST = vSmart × cS[i] × tAdicS         // Didácticas SMART
+usoCT  = vCore  × cC[i] × tUsoC          // Uso CORE
+profCT = vCore  × cC[i] × tProfC         // Profundización CORE
+adicCT = vCore  × cC[i] × tAdicC         // Didácticas CORE
+coreUP = usoCT + profCT                  // uso+prof de CORE del mes
 
-smart  = usoT + profT + adicST          // total SMART del mes
-core   = adicCT                         // total CORE del mes
-up     = usoT + profT                   // "uso+prof": lo que cubren los EMPLEADOS
+smart  = usoT + profT + adicST           // total SMART del mes
+core   = adicCT + usoCT + profCT         // total CORE del mes (didác + uso + prof)
 ```
 
 ### Capacidad y reparto empleados vs. externos
+El control `propEmpCoreUP` (semilla **0%**) decide qué fracción `eCore` de CORE uso/prof consume capacidad de empleados; el resto va directo a externos.
 ```
-cap    = nAse × tDay × dWeek × wMonth    // capacidad de empleados (servicios/mes)
-cov    = min(up, cap)                    // uso+prof cubierto por empleados
-extUP  = max(0, up − cap)                // uso+prof que se va a externos por sobrecupo
-adicExt = adicST + adicCT                // didácticas: SIEMPRE externas
-totExt = extUP + adicExt                 // total externo del mes
-util   = cov / cap                       // utilización de empleados
+cap     = nAse × tDay × dWeek × wMonth    // capacidad de empleados (servicios/mes)
+up      = usoT + profT + coreUP × eCore   // demanda de uso/prof SOBRE empleados
+cov     = min(up, cap)                    // cubierto por empleados
+extUP   = max(0, up − cap)                // sobrecupo de esa demanda → externos
+extCoreUP = coreUP × (1 − eCore)          // CORE uso/prof que NUNCA pasó por empleados
+adicExt = adicST + adicCT                 // didácticas: SIEMPRE externas
+totExt  = extUP + extCoreUP + adicExt     // total externo del mes
+util    = cov / cap                       // utilización de empleados
 ```
-Regla de negocio: **los empleados solo cubren uso/profundización**; las didácticas siempre las hacen externos; y si uso/prof rebasa `cap`, el excedente también se va a externos.
+Regla de negocio: **los empleados cubren uso/profundización de SMART** (y la fracción `eCore` de CORE uso/prof que decidas); las didácticas siempre las hacen externos; el excedente sobre `cap` también. Con `eCore = 0` (default), CORE uso/prof es 100% externo y la utilización de empleados queda idéntica a solo-SMART.
 
 ### Retención vs. conquista (por campaña)
 ```
@@ -93,17 +102,17 @@ COSTO DE SERVICIOS = Σ Costo_servicio_s
 COSTO DE TRASLADOS = Σ Costo_traslado_s
 COSTO TOTAL        = servicios + traslados
 ```
-Donde `N_uso = ΣusoT`, `N_prof = ΣprofT`, `N_didac = Σ(adicST+adicCT)`.
+Donde `N_uso = Σ(usoT+usoCT)`, `N_prof = Σ(profT+profCT)`, `N_didac = Σ(adicST+adicCT)`. Es decir, **las cubetas de costo son por tipo, no por campaña**: CORE uso/prof caen en las mismas cubetas `uso`/`prof` que SMART. Con las semillas ($0 uso/prof, 0% traslado uso/prof) no cambian el costo total ($5,950,800); ponles costo para que sí cuenten.
 
 **Dónde vive el resultado:**
 - Por mes: `MonthRow.costServ`, `.costTras`, `.costTot` (para la gráfica mensual).
 - Anual: `k.costs = { byType[], servicios, traslados, trasladosN, total }` (para KPIs y la tabla de desglose).
 
-**Ejemplo con las semillas** (escenario Techo): didácticas = 1905 servicios → servicios $7,143,750 + traslados (1905 × 40% × $1,500 = $1,143,000) = **$8,286,750**.
+**Ejemplo con las semillas**: didácticas = 1368 servicios (321 SMART + 1047 CORE) → servicios $5,130,000 + traslados (1368 × 40% × $1,500 = $820,800) = **$5,950,800**.
 
 **Notas de comportamiento:**
 - Un **traslado** es un evento de costo fijo; su cantidad sale de la proporción, **no** se redondea internamente (se muestra redondeado). Si algún día se quieren viajes enteros, redondear con `Math.ceil`.
-- Como uso/prof cuestan $0 por defecto, la **intensidad** (que solo mueve `tUso`/`tProf`) no cambia el costo total hasta que les pongas costo. Las didácticas (`tAdic` fijo) mandan el costo.
+- Como uso/prof cuestan $0 por defecto, la **intensidad** (que solo mueve `tUsoS`/`tProfS` de SMART) no cambia el costo total hasta que les pongas costo. Las didácticas (`tAdicS`/`tAdicC` fijos) mandan el costo.
 - Las **proporciones no alteran** el costo de servicios, solo el de traslados (hay una prueba que lo fija).
 
 ---
@@ -112,15 +121,18 @@ Donde `N_uso = ΣusoT`, `N_prof = ΣprofT`, `N_didac = Σ(adicST+adicCT)`.
 
 | Quiero… | Toca… | Cuidado con… |
 |---|---|---|
-| Cambiar un volumen de colegios | `SERVICE_PROFILES` en `model.ts` | `DEFAULTS.vUso/…` derivan de ahí; no lo dupliques en la vista. |
+| Cambiar el volumen de una campaña | `DEFAULTS.vSmart`/`vCore` o el panel "Volúmenes" | Escala todos los tipos de esa campaña a la vez. |
+| Cambiar servicios/colegio de un tipo | `DEFAULTS.tUsoS/tProfS/tAdicS` (SMART) o `tUsoC/tProfC/tAdicC` (CORE), o la rejilla 2×3 | La intensidad sobreescribe `tUsoS/tProfS`. |
 | Cambiar una semilla de costo | `DEFAULTS` (bloque de costos) en `model.ts` | Hay una prueba que fija las semillas — actualízala. |
 | Agregar un tipo de costo nuevo | `CostInputs` + `compute` (loop y `byType`) + `Defaults`/`DEFAULTS` + UI en `Simulador.tsx` | Agrega también su prueba en `model.test.ts`. |
 | Cambiar la regla de capacidad | `cap = …` y `cov/extUP` en `compute` | Las pruebas de capacidad (cap=0, sobrecupo) deben seguir pasando. |
-| Ajustar la intensidad | `applyIntensity` en `Simulador.tsx` | Solo mueve `tUso/tProf/tAdic`; no toca volúmenes ni costos. |
+| Cambiar cuánto CORE uso/prof lo hacen empleados | `propEmpCoreUP` (control en "Capacidad") | Con 0% es todo externo; al subirlo satura la capacidad rápido (volumen CORE alto). |
+| Cambiar la curva de cierre de una campaña | curvas `smart`/`core` en `DEF_CURVES`, o los sliders "SMART"/"CORE" | Aplica a los 3 tipos de esa campaña. El streamgraph usa otras curvas (`uso/prof/adicS/adicC`, `Cu/Cp`), no se sincronizan. |
+| Ajustar la intensidad | `applyIntensity` en `Simulador.tsx` | Solo mueve `tUsoS/tProfS/tAdicS` (SMART); no toca CORE, volúmenes ni costos. |
 | Agregar una columna al CSV | `exportCSV` en `Simulador.tsx` | Manténlo alineado con el `head`. |
 
 ## 6. Invariantes (NO romper)
 - `compute` devuelve **12 filas** (una por mes) y **sin NaN** aunque `cap=0` o volúmenes en 0 (hay pruebas).
 - `k.costs.total === Σ costTot mensual === servicios + traslados` (probado).
-- `DEFAULTS.vAdicC === 1745` (prueba de regresión del bug 1500/1745).
+- El volumen de CORE·didácticas en `SERVICE_PROFILES` (perfil `Cd`) es **1745** (prueba de regresión del bug 1500/1745 del streamgraph).
 - El estado del simulador (`n`, `curves`) **no** se persiste (solo escenarios A/B en `localStorage`); recargar restablece los defaults.
