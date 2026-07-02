@@ -77,8 +77,8 @@ export default function Simulador() {
   }
   const saveScen = (slot: 'A' | 'B') => setScen((p) => ({ ...p, [slot]: { ...k } }))
   const exportCSV = () => {
-    let csv = 'Mes,SMART,CORE,Total,Uso+Prof,Cubierto empl,Ext uso-prof,Ext CORE uso-prof,Didacticas ext,Total ext,Retencion,Conquista,Costo servicios,Costo traslados,Costo total\n'
-    rows.forEach((x) => { csv += [x.m, R(x.smart), R(x.core), R(x.smart + x.core), R(x.up), R(x.cov), R(x.extUP), R(x.extCoreUP), R(x.adicExt), R(x.totExt), R(x.ret), R(x.conq), R(x.costServ), R(x.costTras), R(x.costTot)].join(',') + '\n' })
+    let csv = 'Mes,SMART,CORE,Total,Uso+Prof,Cubierto empl,Ext uso-prof,Didacticas ext,Total ext,Retencion,Conquista,Costo servicios,Costo traslados,Costo total\n'
+    rows.forEach((x) => { csv += [x.m, R(x.smart), R(x.core), R(x.smart + x.core), R(x.up), R(x.cov), R(x.extUP), R(x.adicExt), R(x.totExt), R(x.ret), R(x.conq), R(x.costServ), R(x.costTras), R(x.costTot)].join(',') + '\n' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     a.download = 'coberturas_asesores.csv'; a.click()
   }
@@ -141,7 +141,6 @@ export default function Simulador() {
               <Num label="Sem/mes" step={0.01} value={n.wMonth} onChange={(v) => set('wMonth', v)} />
             </div>
             <Num label="Servicios/mes por externo" value={n.prodExt} min={1} onChange={(v) => set('prodExt', v)} />
-            <Num label="% CORE uso/prof a empleados" unit="%" max={100} value={n.propEmpCoreUP} onChange={(v) => set('propEmpCoreUP', v)} />
             <div className="capnote">Capacidad ≈ {R(k.cap)} servicios/mes ({n.nAse} asesores)</div>
           </div>
 
@@ -237,8 +236,7 @@ export default function Simulador() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(Number(v))} /><Legend />
                 <Bar dataKey="cov" name="Empleados (uso/prof)" stackId="b" fill={BLUE} />
-                <Bar dataKey="extUP" name="Externos uso/prof" stackId="b" fill="rgba(37,99,176,.4)" />
-                <Bar dataKey="extCoreUP" name="Externos CORE uso/prof" stackId="b" fill="rgba(44,138,123,.5)" />
+                <Bar dataKey="extUP" name="Externos uso/prof (sobrecupo)" stackId="b" fill="rgba(37,99,176,.4)" />
                 <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={CORE} />
                 <ReferenceLine y={R(k.cap)} stroke={GOLD} strokeDasharray="5 4" label={{ value: 'capacidad', fontSize: 10, fill: GOLD, position: 'right' }} />
               </BarChart>

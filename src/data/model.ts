@@ -73,8 +73,6 @@ export interface Defaults extends CostInputs {
   /** Servicios/colegio por tipo (SMART y CORE). */
   tUsoS: number; tProfS: number; tAdicS: number;
   tUsoC: number; tProfC: number; tAdicC: number;
-  /** % de CORE uso/prof que atienden empleados (0-100); el resto va con externos. */
-  propEmpCoreUP: number;
   retS: number; retC: number;
 }
 
@@ -84,7 +82,6 @@ export const DEFAULTS: Defaults = {
   vSmart:321, vCore:1047,
   tUsoS:3, tProfS:3, tAdicS:1,
   tUsoC:3, tProfC:3, tAdicC:1,
-  propEmpCoreUP:0,
   retS:94, retC:89,
   // costos: didácticas $3,750 y traslados $1,500; uso/prof en 0. Solo didácticas viajan (40%).
   costoUso:0, costoProf:0, costoDidac:3750, costoTraslado:1500,
@@ -105,7 +102,6 @@ export interface ComputeInput extends CostInputs {
   vSmart: number; vCore: number;
   tUsoS: number; tProfS: number; tAdicS: number;
   tUsoC: number; tProfC: number; tAdicC: number;
-  propEmpCoreUP: number;
   retS: number; retC: number;
 }
 
@@ -114,7 +110,7 @@ export interface MonthRow {
   usoT: number; profT: number; adicST: number; adicCT: number;
   usoCT: number; profCT: number;
   smart: number; core: number; up: number; cap: number;
-  cov: number; extUP: number; extCoreUP: number; adicExt: number; totExt: number; util: number;
+  cov: number; extUP: number; adicExt: number; totExt: number; util: number;
   ret: number; conq: number; retSmart: number; conqSmart: number; retCore: number; conqCore: number;
   /** Costo del mes: servicios, traslados y total. */
   costServ: number; costTras: number; costTot: number;
@@ -157,8 +153,6 @@ export function compute(st: ComputeInput): ComputeResult {
   const cap = st.nAse * st.tDay * st.dWeek * st.wMonth;
   const cS = norm(st.curves.smart), cC = norm(st.curves.core);
   const rS = (st.retS || 0) / 100, rC = (st.retC || 0) / 100;
-  // fracción de CORE uso/prof que atienden empleados; el resto va directo con externos
-  const eCore = (st.propEmpCoreUP || 0) / 100;
   // proporciones de traslado a fracción (0-1)
   const pTU = (st.propTrasUso || 0) / 100, pTP = (st.propTrasProf || 0) / 100, pTD = (st.propTrasDidac || 0) / 100;
   const rows: MonthRow[] = [];
@@ -167,12 +161,11 @@ export function compute(st: ComputeInput): ComputeResult {
     const adicST = st.vSmart * cS[i] * st.tAdicS;
     const usoCT = st.vCore * cC[i] * st.tUsoC, profCT = st.vCore * cC[i] * st.tProfC;
     const adicCT = st.vCore * cC[i] * st.tAdicC;
-    const coreUP = usoCT + profCT;
     const smart = usoT + profT + adicST, core = adicCT + usoCT + profCT;
-    // demanda de uso/prof sobre empleados: SMART siempre + la fracción de CORE que se decida
-    const up = usoT + profT + coreUP * eCore;
+    // uso/prof (SMART + CORE): empleados mientras haya capacidad; el sobrecupo entra a externos.
+    const up = usoT + profT + usoCT + profCT;
     const cov = Math.min(up, cap), extUP = Math.max(0, up - cap);
-    const extCoreUP = coreUP * (1 - eCore);          // CORE uso/prof que va directo a externos
+    // didácticas específicas (SMART + CORE): SIEMPRE externas
     const adicExt = adicST + adicCT;
     const retSmart = smart * rS, conqSmart = smart * (1 - rS);
     const retCore = core * rC, conqCore = core * (1 - rC);
@@ -183,8 +176,8 @@ export function compute(st: ComputeInput): ComputeResult {
     const costServ = usoAll * st.costoUso + profAll * st.costoProf + didacT * st.costoDidac;
     const trasN = usoAll * pTU + profAll * pTP + didacT * pTD;
     const costTras = trasN * st.costoTraslado;
-    rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, usoCT, profCT, smart, core, up, cap, cov, extUP, extCoreUP, adicExt,
-      totExt: extUP + extCoreUP + adicExt, util: cap ? cov / cap : 0,
+    rows.push({ m: MONTHS[i], usoT, profT, adicST, adicCT, usoCT, profCT, smart, core, up, cap, cov, extUP, adicExt,
+      totExt: extUP + adicExt, util: cap ? cov / cap : 0,
       ret, conq, retSmart, conqSmart, retCore, conqCore,
       costServ, costTras, costTot: costServ + costTras });
   }

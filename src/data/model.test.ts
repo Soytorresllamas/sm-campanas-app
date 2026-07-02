@@ -195,12 +195,11 @@ describe('compute — costos', () => {
 });
 
 describe('compute — modelo por campaña (SMART/CORE)', () => {
-  it('semillas: volúmenes 321/1047, 3/3/1 servicios/colegio, 0% CORE uso/prof a empleados', () => {
+  it('semillas: volúmenes 321/1047 y 3/3/1 servicios/colegio en ambas campañas', () => {
     expect(DEFAULTS.vSmart).toBe(321);
     expect(DEFAULTS.vCore).toBe(1047);
     expect(DEFAULTS.tUsoS).toBe(3); expect(DEFAULTS.tProfS).toBe(3); expect(DEFAULTS.tAdicS).toBe(1);
     expect(DEFAULTS.tUsoC).toBe(3); expect(DEFAULTS.tProfC).toBe(3); expect(DEFAULTS.tAdicC).toBe(1);
-    expect(DEFAULTS.propEmpCoreUP).toBe(0);
   });
 
   it('cada campaña = volumen × (uso+prof+didác); total 9576', () => {
@@ -219,25 +218,34 @@ describe('compute — modelo por campaña (SMART/CORE)', () => {
     expect(base.k.totSmart).toBeCloseTo(soloSmart.k.totSmart, 6);
   });
 
-  it('con 0% a empleados (semilla), CORE uso/prof van a externos y no tocan la capacidad', () => {
-    const base = compute(baseInput());
-    const soloSmart = compute(baseInput({ vCore: 0 }));
-    // la cobertura por empleados (cov) es idéntica con o sin CORE (uso/prof CORE no entra a empleados)
-    base.rows.forEach((r, i) => expect(r.cov).toBeCloseTo(soloSmart.rows[i].cov, 6));
-    expect(base.k.utilA).toBeCloseTo(soloSmart.k.utilA, 6);
-    // y todo CORE uso/prof aparece como externo: 1047×3 + 1047×3 = 6282
-    const extCore = base.rows.reduce((s, r) => s + r.extCoreUP, 0);
-    expect(extCore).toBeCloseTo(6282, 4);
-  });
-
-  it('con 100% CORE uso/prof a empleados, extCoreUP es 0 y up incluye CORE', () => {
-    const { rows } = compute(baseInput({ propEmpCoreUP: 100 }));
-    rows.forEach((r) => expect(r.extCoreUP).toBeCloseTo(0, 6));
-    rows.forEach((r) => expect(r.up).toBeGreaterThanOrEqual(r.usoT + r.profT - 1e-6));
-  });
-
-  it('totExt = extUP + extCoreUP + adicExt en cada mes', () => {
+  it('uso/prof (SMART+CORE) van a empleados primero; el sobrecupo entra a externos', () => {
     const { rows } = compute(baseInput());
-    rows.forEach((r) => expect(r.totExt).toBeCloseTo(r.extUP + r.extCoreUP + r.adicExt, 6));
+    rows.forEach((r) => {
+      // toda la demanda de empleados es uso+prof de ambas campañas
+      expect(r.up).toBeCloseTo(r.usoT + r.profT + r.usoCT + r.profCT, 6);
+      // cada servicio de uso/prof está cubierto por empleados o es externo
+      expect(r.cov + r.extUP).toBeCloseTo(r.up, 6);
+      // empleados nunca exceden la capacidad
+      expect(r.cov).toBeLessThanOrEqual(r.cap + 1e-6);
+    });
+  });
+
+  it('con capacidad amplia, uso/prof es 100% interno (extUP = 0) y cov = uso+prof', () => {
+    const { rows } = compute(baseInput({ nAse: 10000 }));
+    rows.forEach((r) => {
+      expect(r.extUP).toBeCloseTo(0, 6);
+      // cov es solo uso/prof (las didácticas NUNCA entran a empleados)
+      expect(r.cov).toBeCloseTo(r.usoT + r.profT + r.usoCT + r.profCT, 6);
+    });
+  });
+
+  it('las didácticas específicas siempre son externas (adicExt = adicST + adicCT)', () => {
+    const { rows } = compute(baseInput({ nAse: 10000 })); // aun con muchísima capacidad
+    rows.forEach((r) => expect(r.adicExt).toBeCloseTo(r.adicST + r.adicCT, 6));
+  });
+
+  it('totExt = extUP + adicExt en cada mes', () => {
+    const { rows } = compute(baseInput());
+    rows.forEach((r) => expect(r.totExt).toBeCloseTo(r.extUP + r.adicExt, 6));
   });
 });

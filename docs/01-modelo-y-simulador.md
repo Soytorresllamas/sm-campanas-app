@@ -1,6 +1,6 @@
 # 01 · Modelo de cálculo y Simulador
 
-**Archivos:** `src/data/model.ts` (toda la lógica, tipada y testeada) · `src/data/model.test.ts` (28 pruebas) · `src/pages/Simulador.tsx` (la UI que lo muestra).
+**Archivos:** `src/data/model.ts` (toda la lógica, tipada y testeada) · `src/data/model.test.ts` (29 pruebas) · `src/pages/Simulador.tsx` (la UI que lo muestra).
 
 El modelo es la **fuente única de verdad** del proyecto: el Simulador y la vista Servicios/streamgraph leen de aquí. Todo el cálculo vive en `compute(input)` y las semillas en `DEFAULTS`. **Si tocas una fórmula, corre `npm test`** — las pruebas fijan los invariantes.
 
@@ -54,18 +54,17 @@ core   = adicCT + usoCT + profCT         // total CORE del mes (didác + uso + p
 ```
 
 ### Capacidad y reparto empleados vs. externos
-El control `propEmpCoreUP` (semilla **0%**) decide qué fracción `eCore` de CORE uso/prof consume capacidad de empleados; el resto va directo a externos.
+Regla fija (sin controles): **uso + profundización de AMBAS campañas** los cubren empleados **mientras haya capacidad**; el sobrecupo entra a externos. **Las didácticas específicas son SIEMPRE externas.**
 ```
-cap     = nAse × tDay × dWeek × wMonth    // capacidad de empleados (servicios/mes)
-up      = usoT + profT + coreUP × eCore   // demanda de uso/prof SOBRE empleados
-cov     = min(up, cap)                    // cubierto por empleados
-extUP   = max(0, up − cap)                // sobrecupo de esa demanda → externos
-extCoreUP = coreUP × (1 − eCore)          // CORE uso/prof que NUNCA pasó por empleados
-adicExt = adicST + adicCT                 // didácticas: SIEMPRE externas
-totExt  = extUP + extCoreUP + adicExt     // total externo del mes
-util    = cov / cap                       // utilización de empleados
+cap     = nAse × tDay × dWeek × wMonth      // capacidad de empleados (servicios/mes)
+up      = usoT + profT + usoCT + profCT     // TODA la demanda de uso/prof (SMART+CORE)
+cov     = min(up, cap)                      // uso/prof cubierto por empleados
+extUP   = max(0, up − cap)                  // sobrecupo de uso/prof → externos
+adicExt = adicST + adicCT                   // didácticas: SIEMPRE externas
+totExt  = extUP + adicExt                   // total externo del mes
+util    = cov / cap                         // utilización de empleados
 ```
-Regla de negocio: **los empleados cubren uso/profundización de SMART** (y la fracción `eCore` de CORE uso/prof que decidas); las didácticas siempre las hacen externos; el excedente sobre `cap` también. Con `eCore = 0` (default), CORE uso/prof es 100% externo y la utilización de empleados queda idéntica a solo-SMART.
+Invariante: `cov + extUP === up` (todo servicio de uso/prof está cubierto o es externo) y las didácticas nunca entran a `cov`. Como CORE uso/prof también compite por la capacidad (y su curva es tardía y voluminosa), la capacidad se satura y hay varios meses de sobrecupo — es el comportamiento esperado.
 
 ### Retención vs. conquista (por campaña)
 ```
@@ -125,8 +124,7 @@ Donde `N_uso = Σ(usoT+usoCT)`, `N_prof = Σ(profT+profCT)`, `N_didac = Σ(adicS
 | Cambiar servicios/colegio de un tipo | `DEFAULTS.tUsoS/tProfS/tAdicS` (SMART) o `tUsoC/tProfC/tAdicC` (CORE), o la rejilla 2×3 | La intensidad sobreescribe `tUsoS/tProfS`. |
 | Cambiar una semilla de costo | `DEFAULTS` (bloque de costos) en `model.ts` | Hay una prueba que fija las semillas — actualízala. |
 | Agregar un tipo de costo nuevo | `CostInputs` + `compute` (loop y `byType`) + `Defaults`/`DEFAULTS` + UI en `Simulador.tsx` | Agrega también su prueba en `model.test.ts`. |
-| Cambiar la regla de capacidad | `cap = …` y `cov/extUP` en `compute` | Las pruebas de capacidad (cap=0, sobrecupo) deben seguir pasando. |
-| Cambiar cuánto CORE uso/prof lo hacen empleados | `propEmpCoreUP` (control en "Capacidad") | Con 0% es todo externo; al subirlo satura la capacidad rápido (volumen CORE alto). |
+| Cambiar la regla de capacidad | `cap = …` y `cov/extUP` en `compute` | Uso/prof (ambas campañas) van a empleados primero; didácticas siempre externas. Las pruebas de capacidad deben seguir pasando. |
 | Cambiar la curva de cierre de una campaña | curvas `smart`/`core` en `DEF_CURVES`, o los sliders "SMART"/"CORE" | Aplica a los 3 tipos de esa campaña. El streamgraph usa otras curvas (`uso/prof/adicS/adicC`, `Cu/Cp`), no se sincronizan. |
 | Ajustar la intensidad | `applyIntensity` en `Simulador.tsx` | Solo mueve `tUsoS/tProfS/tAdicS` (SMART); no toca CORE, volúmenes ni costos. |
 | Agregar una columna al CSV | `exportCSV` en `Simulador.tsx` | Manténlo alineado con el `head`. |

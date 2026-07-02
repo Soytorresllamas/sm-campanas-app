@@ -4,6 +4,8 @@
 
 Es la vista "Servicios (streamgraph)": muestra el **flujo de servicios por mes** de los 6 perfiles, más un "ledger" con el volumen real de colegios por perfil.
 
+> ℹ️ **Fuera del menú (jul 2026):** la pestaña se ocultó del nav (como Documentos). La ruta sigue viva y accesible por URL: `#/servicios`. Para volver a mostrarla, agrega el `<NavLink to="/servicios">` en `src/App.tsx`.
+
 ---
 
 ## 1. Los 6 perfiles (`SERVICE_PROFILES` en `model.ts`)

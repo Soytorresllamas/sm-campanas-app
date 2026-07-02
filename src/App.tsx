@@ -19,7 +19,6 @@ export default function App() {
           <nav className="nav">
             <NavLink to="/simulador">Simulador</NavLink>
             <NavLink to="/gantt">Gantt marketing</NavLink>
-            <NavLink to="/servicios">Servicios (streamgraph)</NavLink>
           </nav>
         </div>
       </header>
@@ -29,8 +28,8 @@ export default function App() {
             <Route path="/" element={<Navigate to="/simulador" replace />} />
             <Route path="/simulador" element={<Simulador />} />
             <Route path="/gantt" element={<GanttMarketing />} />
+            {/* Streamgraph y Documentos quedan accesibles por URL (#/servicios, #/documentos) pero fuera del menú. */}
             <Route path="/servicios" element={<Streamgraph />} />
-            {/* Documentos queda accesible por URL (#/documentos) pero fuera del menú. */}
             <Route path="/documentos" element={<Documentos />} />
           </Routes>
         </Suspense>
