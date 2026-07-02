@@ -2,6 +2,8 @@
 
 Bitácora de decisiones y aprendizajes acumulados. Antes de tocar el proyecto, lee esto — evita repetir investigación ya hecha o deshacer decisiones deliberadas.
 
+> 📚 **Documentación técnica por módulo** (la lógica/fórmulas de cada uno, qué cambiar sin romper): ver la carpeta [`docs/`](docs/README.md). Este archivo es el panorama general; `docs/` baja al detalle.
+
 ## Qué es
 
 App de apoyo al Comité de Negocios para el modelo de campaña SM 2026-2027 (SMART y CORE). Vite + React + TypeScript + Recharts + react-router-dom (`HashRouter`, por eso funciona en GitHub Pages sin config de servidor).

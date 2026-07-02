@@ -2,47 +2,41 @@
 
 App de apoyo al Comité de Negocios para el nuevo modelo de campaña SM 2026-2027 (campañas SMART y CORE). Incluye:
 
-- **Simulador** de coberturas y asesores (talleres por mes, empleados vs externos, retención vs conquista).
-- **Gantt** interactivo de acciones de marketing (filtros, densidad, acordeón, adelanto de semanas, hitos).
-- **Streamgraph** de perfiles de servicio (uso, profundización, didácticas específicas) para SMART y CORE.
+- **Simulador** de coberturas y asesores: servicios por mes, empleados vs externos, retención vs conquista y **módulo de costos** (servicios + traslados).
+- **Gantt** de gestión de acciones de marketing: barras arrastrables, dependencias, filtros, zoom, edición, módulos/responsables editables, y sincronización compartida vía Supabase.
+- **Servicios (streamgraph)** de perfiles de servicio (uso, profundización, didácticas específicas) para SMART y CORE.
 - **Documentos** del modelo y del plan.
 
 ## Ver en línea (GitHub Pages)
 
 - [App completa](https://soytorresllamas.github.io/sm-campanas-app/)
-- [Simulador de coberturas y asesores](https://soytorresllamas.github.io/sm-campanas-app/#/simulador)
-- [Gantt de marketing](https://soytorresllamas.github.io/sm-campanas-app/#/gantt)
-- [Streamgraph de servicios](https://soytorresllamas.github.io/sm-campanas-app/#/servicios)
-- [Documentos del modelo y plan](https://soytorresllamas.github.io/sm-campanas-app/#/documentos)
+- [Simulador](https://soytorresllamas.github.io/sm-campanas-app/#/simulador) · [Gantt](https://soytorresllamas.github.io/sm-campanas-app/#/gantt) · [Servicios](https://soytorresllamas.github.io/sm-campanas-app/#/servicios)
+
+Acceso protegido con contraseña (gate ligero del lado del cliente).
+
+## Documentación
+
+- [`PROJECT_NOTES.md`](PROJECT_NOTES.md) — panorama general, decisiones y roadmap.
+- [`docs/`](docs/README.md) — **documentación técnica por módulo**: la lógica/fórmulas de cada uno y qué se puede cambiar sin romper nada.
 
 ## Stack
 
-Vite + React (JavaScript) · Recharts · react-router-dom · react-markdown.
+Vite + React + **TypeScript** · Recharts · react-router-dom (`HashRouter`) · react-markdown · Supabase.
 
 ## Desarrollo
 
 ```bash
 npm install
-npm run dev      # servidor local
-npm run build    # build de producción en dist/
-npm run preview  # previsualizar el build
+npm run dev        # servidor local
+npm run typecheck  # tsc --noEmit
+npm run lint       # eslint
+npm test           # vitest
+npm run build      # build de producción en dist/
+npm run preview    # previsualizar el build
 ```
 
-## Publicar en un nuevo repositorio de GitHub
+Antes de subir: `npm run typecheck && npm run lint && npm test && npm run build` — todo verde es lo que exige el CI.
 
-Con GitHub CLI (`gh`) autenticado en tu Mac:
+## Despliegue
 
-```bash
-cd "ruta/a/sm-campanas-app"
-gh repo create sm-campanas-app --private --source=. --remote=origin --push
-```
-
-O manualmente (crea primero el repo vacío en github.com):
-
-```bash
-git remote add origin git@github.com:USUARIO/sm-campanas-app.git
-git branch -M main
-git push -u origin main
-```
-
-El repo ya viene con git inicializado y el commit inicial.
+GitHub Actions (`.github/workflows/deploy.yml`) corre el gate (lint + typecheck + test), construye y publica a GitHub Pages en cada push a `main`. Detalles y trampas conocidas en [`docs/04-infraestructura.md`](docs/04-infraestructura.md).
