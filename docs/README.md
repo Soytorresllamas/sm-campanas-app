@@ -17,7 +17,8 @@ la **lógica** (fórmulas / flujo de datos), **qué puedes cambiar con seguridad
 
 ## Reglas de oro (aplican a todo el proyecto)
 
-1. **Colores de datos:** SMART = **azul**, CORE = **teal/verde**. El **rojo** de marca vive solo en el chrome (logo, pestaña activa, botones), **nunca** en barras/áreas/dots de datos. Fue un pedido explícito.
+1. **Colores de datos:** SMART = **azul**, CORE = **teal/verde**. El **rojo** de marca vive solo en el chrome (logo, pestaña activa, botones), **nunca** en barras/áreas/dots que codifican **campaña**. Fue un pedido explícito.
+   - **Excepción deliberada (jul 2026):** la gráfica «2 · Reparto empleados vs externos» del Simulador usa **rojo = interno/uso-prof** (sólido interno · translúcido sobrecupo) y **amarillo = externo/didácticas**, por pedido explícito. Ahí el color codifica interno/externo, no campaña. No lo "arregles" a azul/teal.
 2. **Una sola fuente de verdad para los volúmenes:** viven en `SERVICE_PROFILES` (en `src/data/model.ts`). Nunca escribas un volumen a mano en una vista. (Ya hubo un bug por duplicarlos: 1500 vs 1745.)
 3. **Antes de subir:** corre el gate → `npm run typecheck && npm run lint && npm test && npm run build`. Todo debe quedar verde; el CI lo exige.
 4. **Idioma y commits:** todo en español; commits con título corto + cuerpo con el "por qué".

@@ -5,10 +5,13 @@ import {
 import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model'
 import type { Curves, Defaults, ComputeKpis } from '../data/model'
 
-const SMART = '#2563B0', CORE = '#2C8A7B', BLUE = '#1F5AA6', BLUEL = '#9BBFE8', GOLD = '#B5841C'
+const SMART = '#2563B0', CORE = '#2C8A7B', BLUEL = '#9BBFE8', GOLD = '#B5841C'
 // Intensidad por tipo de servicio: uso (oscuro) → profundización (medio) → didácticas (claro).
 const SMART_USO = '#1F5AA6', SMART_PROF = '#4A82C4', SMART_DIDAC = '#9BBFE8'
 const CORE_USO = '#2C8A7B', CORE_PROF = '#63AE9D', CORE_DIDAC = '#AAD0C8'
+// Reparto empleados vs externos (excepción deliberada a "nunca rojo"): rojo = uso/prof
+// (sólido = interno · translúcido = sobrecupo), amarillo = didácticas externas.
+const RED = '#D64542', REDL = 'rgba(214,69,66,.42)', YELLOW = '#F4C20D'
 const money = (x: number) => x.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 
 interface NumProps {
@@ -243,10 +246,10 @@ export default function Simulador() {
               <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="m" fontSize={11} /><YAxis fontSize={11} /><Tooltip formatter={(v) => R(Number(v))} /><Legend />
-                <Bar dataKey="cov" name="Empleados (uso/prof)" stackId="b" fill={BLUE} />
-                <Bar dataKey="extUP" name="Externos uso/prof (sobrecupo)" stackId="b" fill="rgba(37,99,176,.4)" />
-                <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={CORE} />
-                <ReferenceLine y={R(k.cap)} stroke={GOLD} strokeDasharray="5 4" label={{ value: 'capacidad', fontSize: 10, fill: GOLD, position: 'right' }} />
+                <Bar dataKey="cov" name="Internos (uso/prof)" stackId="b" fill={RED} />
+                <Bar dataKey="extUP" name="Externos uso/prof (sobrecupo)" stackId="b" fill={REDL} />
+                <Bar dataKey="adicExt" name="Externos didácticas" stackId="b" fill={YELLOW} />
+                <ReferenceLine y={R(k.cap)} stroke="#334155" strokeDasharray="5 4" label={{ value: 'capacidad', fontSize: 10, fill: '#334155', position: 'right' }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
