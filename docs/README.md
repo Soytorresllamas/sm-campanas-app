@@ -14,6 +14,7 @@ la **lógica** (fórmulas / flujo de datos), **qué puedes cambiar con seguridad
 | [`02-gantt.md`](02-gantt.md) | El Gantt de gestión (`features/gantt/`): modelo `Task`, hooks, persistencia en Supabase, dependencias, drag/teclado, módulos y responsables editables. |
 | [`03-servicios-streamgraph.md`](03-servicios-streamgraph.md) | La vista "Servicios" (streamgraph): perfiles de servicio, curvas y cómo se alinea con el simulador. |
 | [`04-infraestructura.md`](04-infraestructura.md) | Persistencia (Supabase), gate de contraseña, y despliegue (CI/GitHub Pages), con los aprendizajes de incidentes. |
+| [`05-planeacion-servicios.md`](05-planeacion-servicios.md) | **Diseño** de las hojas de asesores (planeación operativa por asesor: cupos, asignación manual, avance por colegio). Pendiente de implementar. |
 
 ## Reglas de oro (aplican a todo el proyecto)
 
