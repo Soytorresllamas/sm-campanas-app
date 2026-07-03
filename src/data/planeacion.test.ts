@@ -3,7 +3,7 @@ import { DEFAULTS } from './model';
 import {
   serviciosDeTier, nColegios, repartirColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
-  setServicio, renombrarColegio, avanceAsignado, patchColegio,
+  setServicio, renombrarColegio, renombrarAsesor, avanceAsignado, patchColegio,
   hoyISO, sumarDias, urgencia, agendaAsesor, serviciosDeAsesor,
   agregarAlerta, atenderAlerta,
 } from './planeacion';
@@ -266,6 +266,14 @@ describe('setServicio / renombrarColegio', () => {
     const next = renombrarColegio(cols, id, 'Colegio Real X');
     expect(next.find((c) => c.id === id)!.nombre).toBe('Colegio Real X');
     expect(cols[0].nombre).toBe(id);   // original sin mutar
+  });
+
+  it('renombrarAsesor cambia solo el asesor indicado, sin mutar el original', () => {
+    const asesores = [{ id: 'ase-1', nombre: 'Asesor 1' }, { id: 'ase-2', nombre: 'Asesor 2' }];
+    const next = renombrarAsesor(asesores, 'ase-2', 'Marcela Ruiz');
+    expect(next.find((a) => a.id === 'ase-2')!.nombre).toBe('Marcela Ruiz');
+    expect(next.find((a) => a.id === 'ase-1')!.nombre).toBe('Asesor 1'); // otros intactos
+    expect(asesores[1].nombre).toBe('Asesor 2');                         // original sin mutar
   });
 
   it('patchColegio actualiza metadatos (serie/inglés/satisfacción/notas) sin mutar el original', () => {

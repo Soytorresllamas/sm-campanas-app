@@ -193,6 +193,11 @@ export function renombrarColegio(colegios: Colegio[], id: string, nombre: string
   return colegios.map((c) => c.id === id ? { ...c, nombre } : c);
 }
 
+/** Renombra un asesor; el nombre se refleja en toda la app (deriva de aquí). */
+export function renombrarAsesor(asesores: Asesor[], id: string, nombre: string): Asesor[] {
+  return asesores.map((a) => a.id === id ? { ...a, nombre } : a);
+}
+
 /** Actualiza metadatos de un colegio (serie, inglés, satisfacción, notas…); devuelve arreglo nuevo. */
 export function patchColegio(colegios: Colegio[], id: string, patch: Partial<Colegio>): Colegio[] {
   return colegios.map((c) => c.id === id ? { ...c, ...patch } : c);

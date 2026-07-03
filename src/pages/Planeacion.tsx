@@ -3,7 +3,7 @@ import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
-  contarPorTipo, cargaAsesor, resumen, setServicio, patchColegio, avanceAsignado, ESTATUS,
+  contarPorTipo, cargaAsesor, resumen, setServicio, patchColegio, renombrarAsesor, avanceAsignado, ESTATUS,
   hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION, PROBLEMAS, atenderAlerta,
 } from '../data/planeacion'
 import type { PlaneacionData, Estatus, Servicio, Colegio } from '../data/planeacion'
@@ -33,6 +33,7 @@ export default function Planeacion() {
   const [busca, setBusca] = useState('')
   const [colapsados, setColapsados] = useState<Set<string>>(new Set())
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
+  const [editAse, setEditAse] = useState<string | null>(null)
 
   // carga remota inicial: lo remoto gana si existe
   useEffect(() => {
@@ -75,6 +76,8 @@ export default function Planeacion() {
     setData((d) => ({ ...d, colegios: setServicio(d.colegios, colegioId, idx, patch) }))
   const patchCol = (id: string, patch: Partial<Colegio>) =>
     setData((d) => ({ ...d, colegios: patchColegio(d.colegios, id, patch) }))
+  const renombrarAse = (id: string, nombre: string) =>
+    setData((d) => ({ ...d, asesores: renombrarAsesor(d.asesores, id, nombre) }))
 
   const res = resumen(data.colegios)
   const targetName = data.asesores.find((a) => a.id === target)?.nombre ?? '—'
@@ -265,21 +268,34 @@ export default function Planeacion() {
             const on = a.id === target
             const pct = c.servicios ? Math.round((c.realizados / c.servicios) * 100) : 0
             const sobre = c.usoProf > perAseCap
+            const editando = editAse === a.id
             return (
-              <button key={a.id} onClick={() => setTargetSel(a.id)}
-                style={{ display: 'block', width: '100%', textAlign: 'left',
-                  padding: '6px 8px', marginBottom: 4, borderRadius: 8, cursor: 'pointer',
-                  border: on ? `2px solid ${SMART}` : '1px solid #E3E6EB', background: on ? '#F3F7FC' : '#fff' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: on ? 600 : 400 }}>{a.nombre}{sobre && <span title={`Sobrecarga: ${c.usoProf} uso/prof > ${Math.round(perAseCap)} de capacidad anual`} style={{ marginLeft: 4 }}>⚠</span>}</span>
-                  <span style={{ color: 'var(--mut)', fontSize: 12, whiteSpace: 'nowrap' }}>{c.colegios} col · {c.servicios} serv</span>
-                </span>
-                {c.servicios > 0 && (
+              <div key={a.id}
+                style={{ padding: '6px 8px', marginBottom: 4, borderRadius: 8,
+                  border: on ? `2px solid ${SMART}` : '1px solid var(--line)', background: on ? '#F3F7FC' : 'var(--surface)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {editando ? (
+                    <input value={a.nombre} autoFocus aria-label="Nombre del asesor"
+                      onChange={(e) => renombrarAse(a.id, e.target.value)}
+                      onBlur={() => setEditAse(null)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditAse(null) }}
+                      style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, padding: '3px 6px', border: '1px solid var(--line-2)', borderRadius: 6, fontFamily: 'inherit' }} />
+                  ) : (
+                    <button onClick={() => setTargetSel(a.id)} title="Seleccionar asesor"
+                      style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{ fontWeight: on ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre}{sobre && <span title={`Sobrecarga: ${c.usoProf} uso/prof > ${Math.round(perAseCap)} de capacidad anual`} style={{ marginLeft: 4 }}>⚠</span>}</span>
+                      <span style={{ color: 'var(--mut)', fontSize: 12, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{c.colegios} col · {c.servicios} serv</span>
+                    </button>
+                  )}
+                  <button onClick={() => setEditAse(editando ? null : a.id)} title={editando ? 'Listo' : 'Renombrar asesor'} aria-label={editando ? 'Terminar de renombrar' : 'Renombrar asesor'}
+                    style={{ flex: '0 0 auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: editando ? 'var(--core)' : 'var(--mut)', padding: '2px 4px' }}>{editando ? '✓' : '✎'}</button>
+                </div>
+                {c.servicios > 0 && !editando && (
                   <span style={{ display: 'block', height: 3, borderRadius: 3, background: 'var(--track)', marginTop: 5, overflow: 'hidden' }}>
                     <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: EST_COLOR.realizado }} />
                   </span>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
