@@ -16,6 +16,7 @@ Acceso protegido con contraseña (gate ligero del lado del cliente).
 
 ## Documentación
 
+- [`PRESENTACION.md`](PRESENTACION.md) — **cómo funciona la plataforma completa** (divulgativo, base para presentaciones).
 - [`PROJECT_NOTES.md`](PROJECT_NOTES.md) — panorama general, decisiones y roadmap.
 - [`docs/`](docs/README.md) — **documentación técnica por módulo**: la lógica/fórmulas de cada uno y qué se puede cambiar sin romper nada.
 
