@@ -1,13 +1,16 @@
 import { Fragment, useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
   contarPorTipo, cargaAsesor, resumen, setServicio, patchColegio, renombrarAsesor, avanceAsignado, ESTATUS,
   hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION, PROBLEMAS, atenderAlerta,
+  importarColegios,
 } from '../data/planeacion'
 import type { PlaneacionData, Estatus, Servicio, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
+import { leerArchivo, mapearFilas } from '../lib/importColegios'
 import { ColegioCard, ServLabel } from '../features/planeacion/ColegioCard'
 import { SMART, CORE, EST_COLOR, EST_LABEL, URG_BG, tierLabel } from '../features/planeacion/colors'
 
@@ -34,6 +37,7 @@ export default function Planeacion() {
   const [colapsados, setColapsados] = useState<Set<string>>(new Set())
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
   const [editAse, setEditAse] = useState<string | null>(null)
+  const [importInfo, setImportInfo] = useState<{ msg: string; errores: string[] } | null>(null)
 
   // carga remota inicial: lo remoto gana si existe
   useEffect(() => {
@@ -78,6 +82,35 @@ export default function Planeacion() {
     setData((d) => ({ ...d, colegios: patchColegio(d.colegios, id, patch) }))
   const renombrarAse = (id: string, nombre: string) =>
     setData((d) => ({ ...d, asesores: renombrarAsesor(d.asesores, id, nombre) }))
+
+  // carga masiva: archivo de BI (CSV/XLSX) → reemplaza los cupos por el catálogo real
+  const onArchivo = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite volver a elegir el mismo archivo
+    if (!file) return
+    try {
+      const registros = await leerArchivo(file)
+      const { filas, errores, total } = mapearFilas(registros)
+      if (!filas.length) {
+        setImportInfo({ msg: `No se encontraron filas válidas en «${file.name}» (${total} leídas).`, errores })
+        return
+      }
+      const ok = window.confirm(
+        `Se importarán ${filas.length} colegios de «${file.name}»` +
+        (errores.length ? ` (${errores.length} filas con error se omiten)` : '') +
+        `.\n\nEsto REEMPLAZA los cupos actuales y su avance. ¿Continuar?`)
+      if (!ok) return
+      const { data: nd, resumen } = importarColegios(data, filas)
+      setData(nd)
+      setImportInfo({
+        msg: `✓ ${resumen.colegios} colegios importados (SMART ${resumen.porCampaign.SMART} · CORE ${resumen.porCampaign.CORE}) · ` +
+          `${resumen.asignados} asignados a asesor · ${resumen.asesoresNuevos} asesores nuevos.`,
+        errores,
+      })
+    } catch (err) {
+      setImportInfo({ msg: `No se pudo leer el archivo: ${err instanceof Error ? err.message : String(err)}`, errores: [] })
+    }
+  }
 
   const res = resumen(data.colegios)
   const targetName = data.asesores.find((a) => a.id === target)?.nombre ?? '—'
@@ -333,6 +366,34 @@ export default function Planeacion() {
               </tbody>
             </table>
             <div className="hint">Asigna en tandas: escribe la cantidad y pulsa «Asignar». Lo que no asignes lo cubren externos.</div>
+
+            <div className="panel" style={{ marginTop: 14 }}>
+              <h3 style={{ marginTop: 0 }}>Carga masiva de colegios · archivo de BI</h3>
+              <p style={{ fontSize: 12, color: 'var(--mut)', margin: '4px 0 10px', lineHeight: 1.5 }}>
+                Cuando Inteligencia de Negocio entregue el catálogo real, impórtalo aquí (Excel o CSV con la
+                plantilla oficial). Reemplaza los cupos simulados; el «Ejecutivo Responsable» se vuelve asesor
+                y recibe sus colegios en automático. Mientras tanto, los cupos del Simulador siguen funcionando.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <a className="sec" href={`${import.meta.env.BASE_URL}plantilla-colegios.xlsx`} download="plantilla-colegios.xlsx"
+                  style={{ textDecoration: 'none', display: 'inline-block' }}>📥 Descargar plantilla (.xlsx)</a>
+                <label className="sec" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                  📤 Importar archivo…
+                  <input type="file" accept=".csv,.xlsx,.xls" onChange={onArchivo} style={{ display: 'none' }} />
+                </label>
+              </div>
+              {importInfo && (
+                <div className="hint" style={{ marginTop: 10 }}>
+                  {importInfo.msg}
+                  {importInfo.errores.length > 0 && (
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {importInfo.errores.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}
+                      {importInfo.errores.length > 6 && <li>… y {importInfo.errores.length - 6} más.</li>}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </>)}
 
           {view === 'hoja' && (<>

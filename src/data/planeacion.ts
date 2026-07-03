@@ -29,6 +29,16 @@ export interface Servicio {
   fechaPlan?: string;   // ISO 'YYYY-MM-DD'
   fechaReal?: string;
   nota?: string;
+  // ── captura logística (módulo Rentabilidad; la llena la Responsable Logística) ──
+  traslado?: boolean;       // el servicio requirió traslado/viáticos
+  costoTraslado?: number;   // MXN; solo tiene sentido si traslado
+  costoExterno?: number;    // MXN; honorarios cuando lo ejecuta un externo
+  notaLog?: string;         // observación logística (proveedor, folio, etc.)
+}
+
+/** Serie/inglés por nivel escolar (carga masiva de BI; texto libre del CRM). */
+export interface PorNivel {
+  pre?: string; pri?: string; sec?: string; bach?: string;
 }
 
 export interface Colegio {
@@ -43,6 +53,16 @@ export interface Colegio {
   ingles?: string;           // p.ej. Bright Sparks, Winglish
   satisfaccion?: number;     // 1-5 (caritas); undefined = sin calificar
   notasGenerales?: string;
+  // ── datos del CRM (carga masiva; ver docs/06-rentabilidad.md) ──
+  idCrm?: string;
+  clave?: string;
+  valorReal?: number;        // MXN; ingreso real del colegio (base de rentabilidad)
+  gerencia?: string;
+  ejecutivo?: string;        // ejecutivo responsable (se propaga como asesor)
+  antiguedad?: number;       // años
+  seriesNivel?: PorNivel;    // serie por nivel escolar
+  inglesNivel?: PorNivel;    // inglés por nivel escolar
+  otraSerie?: string;
 }
 
 export interface Asesor { id: string; nombre: string; }
@@ -290,4 +310,167 @@ export function avanceAsignado(colegios: Colegio[]): Avance {
     }
   }
   return { colegios: cols, servicios, realizados, usoProf, didac };
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Carga masiva de colegios (archivo de BI) — ver docs/06-rentabilidad.md
+// ════════════════════════════════════════════════════════════════════
+
+/** Una fila ya validada del archivo de BI (el parseo/mapeo vive en lib/importColegios). */
+export interface FilaColegio {
+  nombre: string;
+  campaign: Campaign;
+  tier: TierKey;
+  idCrm?: string; clave?: string; valorReal?: number;
+  gerencia?: string; ejecutivo?: string; antiguedad?: number;
+  seriesNivel?: PorNivel; inglesNivel?: PorNivel; otraSerie?: string;
+}
+
+export interface ImportResumen {
+  colegios: number;                    // colegios importados
+  asesoresNuevos: number;              // creados a partir de «Ejecutivo Responsable»
+  asignados: number;                   // colegios que quedaron con asesor
+  porCampaign: Record<Campaign, number>;
+}
+
+/** Nombre normalizado para casar ejecutivos con asesores (acentos/espacios/caja). */
+const normNombre = (s: string): string =>
+  s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+
+const slug = (s: string): string => normNombre(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** Reemplaza los cupos simulados por el catálogo real de BI. Los servicios de cada
+ *  colegio salen de su campaña+categoría (misma matriz del Simulador). Cada
+ *  «Ejecutivo Responsable» se casa con un asesor existente por nombre o se crea,
+ *  y el colegio queda asignado a él (así se propaga a las hojas de asesores). */
+export function importarColegios(data: PlaneacionData, filas: FilaColegio[]): { data: PlaneacionData; resumen: ImportResumen } {
+  const asesores = [...data.asesores];
+  const porNombre = new Map(asesores.map((a) => [normNombre(a.nombre), a.id]));
+  const idsUsados = new Set<string>();
+  const colegios: Colegio[] = [];
+  let asesoresNuevos = 0, asignados = 0;
+  const porCampaign: Record<Campaign, number> = { SMART: 0, CORE: 0 };
+
+  for (const f of filas) {
+    const tiers = f.campaign === 'SMART' ? DEFAULTS.tiersSmart : DEFAULTS.tiersCore;
+    const seed = tiers.find((t) => t.key === f.tier) ?? tiers[0];
+
+    // id estable: primero el id de CRM, luego la clave, luego el nombre
+    let id = f.idCrm ? `crm-${slug(f.idCrm)}` : f.clave ? `cve-${slug(f.clave)}` : `imp-${slug(f.nombre)}`;
+    for (let n = 2; idsUsados.has(id); n++) id = `${id.replace(/~\d+$/, '')}~${n}`;
+    idsUsados.add(id);
+
+    // ejecutivo responsable → asesor (crea si no existe)
+    let asesorId: string | null = null;
+    if (f.ejecutivo?.trim()) {
+      const key = normNombre(f.ejecutivo);
+      asesorId = porNombre.get(key) ?? null;
+      if (!asesorId) {
+        asesorId = `ase-imp-${slug(f.ejecutivo)}`;
+        asesores.push({ id: asesorId, nombre: f.ejecutivo.trim() });
+        porNombre.set(key, asesorId);
+        asesoresNuevos++;
+      }
+      asignados++;
+    }
+
+    porCampaign[f.campaign]++;
+    colegios.push({
+      id, nombre: f.nombre, campaign: f.campaign, tier: f.tier, asesorId,
+      servicios: serviciosDeTier(seed),
+      idCrm: f.idCrm, clave: f.clave, valorReal: f.valorReal,
+      gerencia: f.gerencia, ejecutivo: f.ejecutivo, antiguedad: f.antiguedad,
+      seriesNivel: f.seriesNivel, inglesNivel: f.inglesNivel, otraSerie: f.otraSerie,
+    });
+  }
+
+  return {
+    data: { ...data, asesores, colegios },
+    resumen: { colegios: colegios.length, asesoresNuevos, asignados, porCampaign },
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Rentabilidad — valor real del colegio vs costos de sus servicios.
+// El Simulador estima ex-ante (CostInputs); aquí se captura lo REAL:
+// la Responsable Logística marca traslado/costos por servicio.
+// ════════════════════════════════════════════════════════════════════
+
+export type Ejecutor = 'interno' | 'externo';
+
+/** Quién ejecuta: didácticas SIEMPRE externos; uso/prof internos solo si el
+ *  colegio tiene asesor asignado (sin asesor lo cubre un externo). */
+export function ejecutorDe(s: Servicio, c: Colegio): Ejecutor {
+  return s.tipo === 'didac' || !c.asesorId ? 'externo' : 'interno';
+}
+
+/** Costo real capturado de un servicio: traslado (si lo hubo) + honorarios externos. */
+export function costoServicio(s: Servicio): number {
+  return (s.traslado ? (s.costoTraslado ?? 0) : 0) + (s.costoExterno ?? 0);
+}
+
+export interface RentColegio {
+  valor: number | null;    // null = sin Valor Real (p.ej. cupos simulados)
+  costo: number;
+  margen: number | null;
+  pct: number | null;      // margen/valor ×100
+  servicios: number; realizados: number; conCosto: number; externos: number;
+}
+
+export function rentabilidadColegio(c: Colegio): RentColegio {
+  let costo = 0, realizados = 0, conCosto = 0, externos = 0;
+  for (const s of c.servicios) {
+    const cs = costoServicio(s);
+    costo += cs;
+    if (cs > 0) conCosto++;
+    if (s.estatus === 'realizado') realizados++;
+    if (ejecutorDe(s, c) === 'externo') externos++;
+  }
+  const valor = typeof c.valorReal === 'number' ? c.valorReal : null;
+  const margen = valor === null ? null : valor - costo;
+  const pct = valor ? ((valor - costo) / valor) * 100 : null;
+  return { valor, costo, margen, pct, servicios: c.servicios.length, realizados, conCosto, externos };
+}
+
+export interface RentGrupo {
+  key: string; label: string;
+  colegios: number; sinValor: number;   // colegios sin Valor Real (fuera del margen)
+  valor: number; costo: number; margen: number;
+  servicios: number; realizados: number;
+}
+
+/** Agrega rentabilidad por una llave (gerencia, asesor, campaña…). El valor y el
+ *  margen solo suman colegios CON Valor Real; el costo suma todos. */
+export function agruparRent(colegios: Colegio[], llave: (c: Colegio) => string): RentGrupo[] {
+  const map = new Map<string, RentGrupo>();
+  for (const c of colegios) {
+    const k = llave(c) || '(sin dato)';
+    const g = map.get(k) ?? { key: k, label: k, colegios: 0, sinValor: 0, valor: 0, costo: 0, margen: 0, servicios: 0, realizados: 0 };
+    const r = rentabilidadColegio(c);
+    g.colegios++;
+    g.costo += r.costo;
+    g.servicios += r.servicios;
+    g.realizados += r.realizados;
+    if (r.valor === null) g.sinValor++;
+    else { g.valor += r.valor; g.margen += r.valor - r.costo; }
+    map.set(k, g);
+  }
+  return [...map.values()].sort((a, b) => b.valor - a.valor || a.label.localeCompare(b.label));
+}
+
+/** Una fila de la hoja logística: un servicio con su colegio y ejecutor derivado. */
+export interface FilaLogistica {
+  colegio: Colegio;
+  idx: number;          // índice del servicio dentro del colegio (para setServicio)
+  servicio: Servicio;
+  ejecutor: Ejecutor;
+}
+
+/** Aplana todos los servicios del tablero para la hoja de la Responsable Logística. */
+export function filasLogistica(colegios: Colegio[]): FilaLogistica[] {
+  const out: FilaLogistica[] = [];
+  for (const c of colegios) {
+    c.servicios.forEach((s, idx) => out.push({ colegio: c, idx, servicio: s, ejecutor: ejecutorDe(s, c) }));
+  }
+  return out;
 }
