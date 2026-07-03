@@ -40,7 +40,14 @@ interface Colegio {          // "cupo": anónimo hoy, con nombre real tras CSV
   tier: TierKey;
   asesorId: string | null;   // null = sin asignar (lo cubren externos)
   servicios: Servicio[];     // congelados al generar (ver §3)
+  serie?: string;            // catálogo SERIES (Acierta, Revuela Up…)
+  ingles?: string;           // catálogo INGLES (Bright Sparks, Winglish…)
+  satisfaccion?: number;     // 1-5 (caritas SATISFACCION); undefined = sin calificar
+  notasGenerales?: string;
 }
+```
+> ⚠️ **Catálogos placeholder:** `SERIES` e `INGLES` en `planeacion.ts` traen solo ejemplos; **falta cargar el catálogo real de SM**. La satisfacción usa `SATISFACCION` (5 caritas 😠🙁😐🙂😄).
+```
 
 interface Asesor { id: string; nombre: string; }
 
@@ -115,8 +122,9 @@ El modelo ya queda listo para carga real de colegios:
    - Sub-vistas **Por colegio** (tarjetas colapsables) y **Agenda** (todos los servicios aplanados y ordenados por fecha).
    - **Filtros** por estatus (incl. «vencidos»), campaña y tipo.
    - Cada servicio: **checkbox «hecho»** (marca realizado y pone la fecha de hoy automáticamente), estatus, fecha planeada y **fecha real contextual** (oculta si está pendiente), badge/fondo **ámbar** para vencidos, e ✎ **nota** por servicio.
-   - Helpers puros: `setServicio`, `renombrarColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`.
-   - ⏳ Uso en campo (móvil-first) queda para después.
+   - Tarjetas a **una sola columna** (evitan el desborde al aparecer la fecha real). Cada tarjeta trae metadatos del colegio: **Serie**, **Inglés**, **Satisfacción** (caritas) y **Notas generales**. Los filtros incluyen también serie / inglés / satisfacción.
+   - Helpers puros: `setServicio`, `renombrarColegio`, `patchColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`.
+   - ⏳ Uso en campo (móvil-first) queda para después. **Pendiente: cargar el catálogo real de `SERIES` e `INGLES`.**
 3. ✅ **Resumen + reconciliación (hecha):** pestaña «Resumen» (a pantalla completa); KPIs de avance de lo asignado, tabla de avance por asesor (con barra y aviso de sobrecarga si su uso/prof supera su capacidad individual ≈ `tDay×dWeek×wMonth×12`), y **reconciliación**: uso/prof asignado a empleados vs. capacidad anual (`nAse×tDay×dWeek×wMonth×12`) con semáforo verde/aviso. Helper `avanceAsignado`; `cargaAsesor` ahora separa `usoProf`. La capacidad sale de `DEFAULTS` (consistente con la generación de cupos).
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.
 

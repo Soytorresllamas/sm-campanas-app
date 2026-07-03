@@ -3,7 +3,7 @@ import { DEFAULTS } from './model';
 import {
   serviciosDeTier, nColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
-  setServicio, renombrarColegio, avanceAsignado,
+  setServicio, renombrarColegio, avanceAsignado, patchColegio,
   hoyISO, sumarDias, urgencia, agendaAsesor, serviciosDeAsesor,
 } from './planeacion';
 import type { Servicio } from './planeacion';
@@ -223,5 +223,17 @@ describe('setServicio / renombrarColegio', () => {
     const next = renombrarColegio(cols, id, 'Colegio Real X');
     expect(next.find((c) => c.id === id)!.nombre).toBe('Colegio Real X');
     expect(cols[0].nombre).toBe(id);   // original sin mutar
+  });
+
+  it('patchColegio actualiza metadatos (serie/inglés/satisfacción/notas) sin mutar el original', () => {
+    const cols = base();
+    const id = cols[0].id;
+    const next = patchColegio(cols, id, { serie: 'Acierta', ingles: 'Winglish', satisfaccion: 4, notasGenerales: 'Buen contacto' });
+    const c = next.find((x) => x.id === id)!;
+    expect(c.serie).toBe('Acierta');
+    expect(c.ingles).toBe('Winglish');
+    expect(c.satisfaccion).toBe(4);
+    expect(c.notasGenerales).toBe('Buen contacto');
+    expect(cols[0].serie).toBeUndefined(); // original sin mutar
   });
 });

@@ -3,10 +3,10 @@ import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
-  contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, avanceAsignado, ESTATUS,
-  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor,
+  contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, patchColegio, avanceAsignado, ESTATUS,
+  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION,
 } from '../data/planeacion'
-import type { PlaneacionData, Estatus, Servicio, Urgencia } from '../data/planeacion'
+import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 
 const SMART = '#2563B0', CORE = '#2C8A7B'
@@ -27,6 +27,9 @@ export default function Planeacion() {
   const [fEstatus, setFEstatus] = useState<'todos' | 'pendiente' | 'agendado' | 'realizado' | 'vencidos'>('todos')
   const [fCamp, setFCamp] = useState<'todos' | Campaign>('todos')
   const [fTier, setFTier] = useState<'todos' | TierKey>('todos')
+  const [fSerie, setFSerie] = useState<string>('todos')
+  const [fIngles, setFIngles] = useState<string>('todos')
+  const [fSat, setFSat] = useState<string>('todos')
   const [colapsados, setColapsados] = useState<Set<string>>(new Set())
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
 
@@ -71,6 +74,8 @@ export default function Planeacion() {
     setData((d) => ({ ...d, colegios: setServicio(d.colegios, colegioId, idx, patch) }))
   const renombrar = (id: string, nombre: string) =>
     setData((d) => ({ ...d, colegios: renombrarColegio(d.colegios, id, nombre) }))
+  const patchCol = (id: string, patch: Partial<Colegio>) =>
+    setData((d) => ({ ...d, colegios: patchColegio(d.colegios, id, patch) }))
 
   const res = resumen(data.colegios)
   const targetName = data.asesores.find((a) => a.id === target)?.nombre ?? '—'
@@ -81,9 +86,18 @@ export default function Planeacion() {
   // agenda / filtros de la hoja
   const hoy = hoyISO()
   const ag = agendaAsesor(data.colegios, target, hoy)
-  const pasa = (campaign: Campaign, tier: TierKey, s: Servicio): boolean => {
+  const filtroColegio = (campaign: Campaign, tier: TierKey, serie?: string, ingles?: string, satisfaccion?: number): boolean => {
     if (fCamp !== 'todos' && campaign !== fCamp) return false
     if (fTier !== 'todos' && tier !== fTier) return false
+    if (fSerie !== 'todos' && (serie ?? '') !== fSerie) return false
+    if (fIngles !== 'todos' && (ingles ?? '') !== fIngles) return false
+    if (fSat !== 'todos') {
+      if (fSat === 'sin') { if (satisfaccion) return false }
+      else if (String(satisfaccion ?? '') !== fSat) return false
+    }
+    return true
+  }
+  const pasaServicio = (s: Servicio): boolean => {
     if (fEstatus === 'todos') return true
     if (fEstatus === 'vencidos') return urgencia(s, hoy) === 'vencido'
     return s.estatus === fEstatus
@@ -277,21 +291,34 @@ export default function Planeacion() {
                   <button className={hojaView === 'colegio' ? 'on' : ''} onClick={() => setHojaView('colegio')}>Por colegio</button>
                   <button className={hojaView === 'agenda' ? 'on' : ''} onClick={() => setHojaView('agenda')}>Agenda</button>
                 </div>
-                <select value={fEstatus} onChange={(e) => setFEstatus(e.target.value as typeof fEstatus)}>
+                <select value={fEstatus} onChange={(e) => setFEstatus(e.target.value as typeof fEstatus)} style={{ width: 'auto' }}>
                   <option value="todos">Todos los estatus</option>
                   <option value="pendiente">Pendientes</option>
                   <option value="agendado">Agendados</option>
                   <option value="realizado">Realizados</option>
                   <option value="vencidos">Vencidos</option>
                 </select>
-                <select value={fCamp} onChange={(e) => setFCamp(e.target.value as typeof fCamp)}>
+                <select value={fCamp} onChange={(e) => setFCamp(e.target.value as typeof fCamp)} style={{ width: 'auto' }}>
                   <option value="todos">Ambas campañas</option>
                   <option value="SMART">SMART</option>
                   <option value="CORE">CORE</option>
                 </select>
-                <select value={fTier} onChange={(e) => setFTier(e.target.value as typeof fTier)}>
+                <select value={fTier} onChange={(e) => setFTier(e.target.value as typeof fTier)} style={{ width: 'auto' }}>
                   <option value="todos">Todos los tipos</option>
                   {TIER_SEED.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+                <select value={fSerie} onChange={(e) => setFSerie(e.target.value)} style={{ width: 'auto' }}>
+                  <option value="todos">Toda serie</option>
+                  {SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select value={fIngles} onChange={(e) => setFIngles(e.target.value)} style={{ width: 'auto' }}>
+                  <option value="todos">Todo inglés</option>
+                  {INGLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select value={fSat} onChange={(e) => setFSat(e.target.value)} style={{ width: 'auto' }}>
+                  <option value="todos">Toda satisfacción</option>
+                  {SATISFACCION.map((s) => <option key={s.v} value={String(s.v)}>{s.emoji} {s.label}</option>)}
+                  <option value="sin">Sin calificar</option>
                 </select>
                 {hojaView === 'colegio' && (
                   <button className="sec" onClick={() => setColapsados((p) => p.size ? new Set() : new Set(misColegios.map((c) => c.id)))}>
@@ -301,9 +328,9 @@ export default function Planeacion() {
               </div>
 
               {hojaView === 'colegio' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 10 }}>
-                  {misColegios.filter((c) => (fCamp === 'todos' || c.campaign === fCamp) && (fTier === 'todos' || c.tier === fTier)).map((c) => {
-                    const visibles = c.servicios.map((s, i) => ({ s, i })).filter(({ s }) => pasa(c.campaign, c.tier, s))
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 820px)', gap: 10 }}>
+                  {misColegios.filter((c) => filtroColegio(c.campaign, c.tier, c.serie, c.ingles, c.satisfaccion)).map((c) => {
+                    const visibles = c.servicios.map((s, i) => ({ s, i })).filter(({ s }) => pasaServicio(s))
                     if (visibles.length === 0) return null
                     const done = c.servicios.filter((s) => s.estatus === 'realizado').length
                     const total = c.servicios.length
@@ -316,15 +343,34 @@ export default function Planeacion() {
                           <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
                           <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)}
                             style={{ flex: 1, minWidth: 0, border: 'none', fontWeight: 600, fontSize: 13, background: 'transparent', padding: 0 }} />
+                          {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
                           <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
                         </div>
                         <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 2 }}>
                           <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
                         </div>
                         <div style={{ fontSize: 10, color: '#646A75', marginBottom: 4 }}>{done}/{total} realizados</div>
-                        {abierto && (
+                        {abierto && (<>
+                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 8px', fontSize: 11, color: '#646A75' }}>
+                            <label>Serie{' '}
+                              <select value={c.serie ?? ''} onChange={(e) => patchCol(c.id, { serie: e.target.value || undefined })} style={{ fontSize: 11 }}>
+                                <option value="">—</option>{SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </label>
+                            <label>Inglés{' '}
+                              <select value={c.ingles ?? ''} onChange={(e) => patchCol(c.id, { ingles: e.target.value || undefined })} style={{ fontSize: 11 }}>
+                                <option value="">—</option>{INGLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </label>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>Satisfacción:
+                              {SATISFACCION.map((s) => (
+                                <button key={s.v} title={s.label} onClick={() => patchCol(c.id, { satisfaccion: c.satisfaccion === s.v ? undefined : s.v })}
+                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 1px', opacity: c.satisfaccion === s.v ? 1 : 0.3, filter: c.satisfaccion === s.v ? 'none' : 'grayscale(1)' }}>{s.emoji}</button>
+                              ))}
+                            </span>
+                          </div>
                           <table style={{ fontSize: 11 }}>
-                            <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Plan.</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
+                            <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
                             <tbody>
                               {visibles.map(({ s, i }) => {
                                 const u = urgencia(s, hoy); const badge = URG_BADGE[u]
@@ -344,7 +390,10 @@ export default function Planeacion() {
                               })}
                             </tbody>
                           </table>
-                        )}
+                          <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…"
+                            onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
+                            style={{ width: '100%', fontSize: 12, padding: '4px 6px', marginTop: 8, boxSizing: 'border-box', minHeight: 42, resize: 'vertical' }} />
+                        </>)}
                       </div>
                     )
                   })}
@@ -354,7 +403,7 @@ export default function Planeacion() {
                   <thead><tr><th style={{ width: 24 }}></th><th>Colegio</th><th>Campaña</th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 24 }}></th></tr></thead>
                   <tbody>
                     {serviciosDeAsesor(data.colegios, target)
-                      .filter((r) => pasa(r.campaign, r.tier, r.servicio))
+                      .filter((r) => filtroColegio(r.campaign, r.tier, r.serie, r.ingles, r.satisfaccion) && pasaServicio(r.servicio))
                       .sort((a, b) => (a.servicio.fechaPlan ?? '9999').localeCompare(b.servicio.fechaPlan ?? '9999'))
                       .map((r) => {
                         const u = urgencia(r.servicio, hoy); const badge = URG_BADGE[u]

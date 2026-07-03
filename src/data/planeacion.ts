@@ -10,6 +10,19 @@ export type ServTipo = 'uso' | 'prof' | 'didac';
 export const ESTATUS: Estatus[] = ['pendiente', 'agendado', 'realizado'];
 export const SERV_LABEL: Record<ServTipo, string> = { uso: 'Uso', prof: 'Profundización', didac: 'Didáctica' };
 
+// Catálogos de colegio (placeholder — completar con el catálogo real de SM).
+export const SERIES = ['Acierta', 'Revuela Up'];
+export const INGLES = ['Bright Sparks', 'Winglish'];
+// Escala de satisfacción general (1-5); undefined = sin calificar.
+export interface Carita { v: number; emoji: string; label: string; }
+export const SATISFACCION: Carita[] = [
+  { v: 1, emoji: '😠', label: 'Enojado' },
+  { v: 2, emoji: '🙁', label: 'Triste' },
+  { v: 3, emoji: '😐', label: 'Serio' },
+  { v: 4, emoji: '🙂', label: 'Contento' },
+  { v: 5, emoji: '😄', label: 'Muy feliz' },
+];
+
 export interface Servicio {
   tipo: ServTipo;
   estatus: Estatus;
@@ -25,6 +38,11 @@ export interface Colegio {
   tier: TierKey;
   asesorId: string | null;   // null = sin asignar (lo cubren externos)
   servicios: Servicio[];     // congelados al generar
+  // metadatos del colegio (opcionales, editables en la hoja del asesor)
+  serie?: string;            // p.ej. Acierta, Revuela Up
+  ingles?: string;           // p.ej. Bright Sparks, Winglish
+  satisfaccion?: number;     // 1-5 (caritas); undefined = sin calificar
+  notasGenerales?: string;
 }
 
 export interface Asesor { id: string; nombre: string; }
@@ -130,6 +148,11 @@ export function renombrarColegio(colegios: Colegio[], id: string, nombre: string
   return colegios.map((c) => c.id === id ? { ...c, nombre } : c);
 }
 
+/** Actualiza metadatos de un colegio (serie, inglés, satisfacción, notas…); devuelve arreglo nuevo. */
+export function patchColegio(colegios: Colegio[], id: string, patch: Partial<Colegio>): Colegio[] {
+  return colegios.map((c) => c.id === id ? { ...c, ...patch } : c);
+}
+
 export interface Carga { colegios: number; servicios: number; realizados: number; usoProf: number; }
 export function cargaAsesor(colegios: Colegio[], asesorId: string): Carga {
   let cols = 0, servicios = 0, realizados = 0, usoProf = 0;
@@ -185,13 +208,20 @@ export function agendaAsesor(colegios: Colegio[], asesorId: string, hoy: string)
   return { vencidos, estaSemana, porHacer };
 }
 
-export interface ServicioRef { colegioId: string; colegioNombre: string; campaign: Campaign; tier: TierKey; idx: number; servicio: Servicio; }
+export interface ServicioRef {
+  colegioId: string; colegioNombre: string; campaign: Campaign; tier: TierKey;
+  serie?: string; ingles?: string; satisfaccion?: number;
+  idx: number; servicio: Servicio;
+}
 /** Aplana los servicios de un asesor (para la vista agenda). */
 export function serviciosDeAsesor(colegios: Colegio[], asesorId: string): ServicioRef[] {
   const out: ServicioRef[] = [];
   for (const c of colegios) {
     if (c.asesorId !== asesorId) continue;
-    c.servicios.forEach((servicio, idx) => out.push({ colegioId: c.id, colegioNombre: c.nombre, campaign: c.campaign, tier: c.tier, idx, servicio }));
+    c.servicios.forEach((servicio, idx) => out.push({
+      colegioId: c.id, colegioNombre: c.nombre, campaign: c.campaign, tier: c.tier,
+      serie: c.serie, ingles: c.ingles, satisfaccion: c.satisfaccion, idx, servicio,
+    }));
   }
   return out;
 }
