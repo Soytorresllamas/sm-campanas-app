@@ -38,6 +38,10 @@ label .u{color:var(--faint);}
 input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;}
 input[type=range]{width:100%;accent-color:var(--red);}
 select{width:100%;padding:5px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;}
+/* Caja de notas (planeación): textarea con foco suave, no "de consola" */
+.nota-box{width:100%;box-sizing:border-box;margin-top:6px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--panel-bg);color:var(--ink);font-family:inherit;font-size:13px;line-height:1.55;min-height:52px;resize:vertical;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease;}
+.nota-box::placeholder{color:var(--faint);}
+.nota-box:focus{outline:none;background:var(--surface);border-color:var(--smart);box-shadow:0 0 0 3px rgba(37,99,176,.12);}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
 .cols{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start;}

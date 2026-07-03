@@ -1,14 +1,14 @@
 import { Fragment, useState } from 'react'
 import { ESTATUS, SATISFACCION, SERIES, INGLES, urgencia } from '../../data/planeacion'
 import type { Colegio, Servicio, Estatus, Urgencia } from '../../data/planeacion'
-import { SMART, CORE, EST_LABEL, SERV_SHORT, URG_BG, tierLabel, segColor } from './colors'
+import { SMART, CORE, EST_LABEL, SERV_LABEL, URG_BG, tierLabel, segColor } from './colors'
 
 // ─── UI compartida de la planeación (portal del asesor + hoja del coordinador) ───
 
 /** Etiqueta del servicio: tipo + EXT (didácticas las ejecutan externos) + badge de urgencia. */
 export function ServLabel({ s, u }: { s: Servicio; u: Urgencia }) {
   return (<>
-    {SERV_SHORT[s.tipo]}
+    {SERV_LABEL[s.tipo]}
     {s.tipo === 'didac' && <span title="La ejecutan externos; el asesor coordina y da seguimiento"
       style={{ fontSize: 8.5, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 4, padding: '1px 4px', marginLeft: 4, verticalAlign: 'middle' }}>EXT</span>}
     {u === 'vencido' && <span style={{ color: 'var(--gold)', fontSize: 9, marginLeft: 3 }}>· Vencido</span>}
@@ -75,7 +75,7 @@ export function ColegioCard({ c, hoy, abierto, onToggle, onServ, onPatch, editab
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 2px' }}>
         <div style={{ display: 'flex', gap: 2, flex: 1, minWidth: 60 }}>
           {c.servicios.map((s, i) => (
-            <span key={i} title={`${SERV_SHORT[s.tipo]} · ${EST_LABEL[s.estatus]}`} style={{ flex: 1, height: 7, borderRadius: 2, background: segColor(s, hoy) }} />
+            <span key={i} title={`${SERV_LABEL[s.tipo]} · ${EST_LABEL[s.estatus]}`} style={{ flex: 1, height: 7, borderRadius: 2, background: segColor(s, hoy) }} />
           ))}
         </div>
         <span style={{ fontSize: 11, color: 'var(--mut)', flex: '0 0 auto', whiteSpace: 'nowrap', fontWeight: 600 }}>{done}/{total} hechos</span>
@@ -94,7 +94,7 @@ export function ColegioCard({ c, hoy, abierto, onToggle, onServ, onPatch, editab
                     onChange={(e) => e.target.checked
                       ? onServ(i, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
                       : onServ(i, { estatus: s.fechaPlan ? 'agendado' : 'pendiente', fechaReal: undefined })} />
-                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><ServLabel s={s} u={u} /></span>
+                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 0, lineHeight: 1.2, overflowWrap: 'break-word' }}><ServLabel s={s} u={u} /></span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--mut)' }} title={real ? 'Fecha real' : 'Fecha planeada'}>
                     {real ? 'R' : 'P'}
                     <input type="date" aria-label={real ? 'Fecha real' : 'Fecha planeada'} value={(real ? s.fechaReal : s.fechaPlan) ?? ''}
@@ -148,14 +148,19 @@ export function ColegioCard({ c, hoy, abierto, onToggle, onServ, onPatch, editab
         </div>
 
         {/* notas generales tras disclosure */}
-        <button onClick={() => setNotasOpen((v) => !v)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--mut)', padding: '6px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
-          {notasOpen ? '▾' : '▸'} Notas generales
-          {c.notasGenerales && !notasOpen ? <span style={{ width: 6, height: 6, borderRadius: 6, background: SMART, display: 'inline-block' }} /> : null}
+        <button onClick={() => setNotasOpen((v) => !v)} aria-expanded={notasOpen}
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', padding: '8px 0 0', display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', minWidth: 0 }}>
+          <span aria-hidden style={{ fontSize: 10, color: 'var(--mut)', flex: '0 0 auto' }}>{notasOpen ? '▾' : '▸'}</span>
+          <span aria-hidden style={{ flex: '0 0 auto' }}>📝</span>
+          <span style={{ flex: '0 0 auto' }}>Notas generales</span>
+          {c.notasGenerales && !notasOpen && (
+            <span style={{ fontWeight: 400, fontStyle: 'italic', color: 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>— “{c.notasGenerales}”</span>
+          )}
         </button>
         {notasOpen && (
-          <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…" autoFocus
-            onChange={(e) => onPatch({ notasGenerales: e.target.value || undefined })}
-            style={{ width: '100%', fontSize: 13, padding: '6px 8px', marginTop: 4, boxSizing: 'border-box', minHeight: 44, resize: 'vertical' }} />
+          <textarea className="nota-box" value={c.notasGenerales ?? ''} autoFocus
+            placeholder="Observaciones del colegio: contactos, acuerdos, contexto, pendientes…"
+            onChange={(e) => onPatch({ notasGenerales: e.target.value || undefined })} />
         )}
       </>)}
     </div>

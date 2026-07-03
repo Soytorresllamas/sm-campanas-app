@@ -8,7 +8,7 @@ import type { TierKey } from '../../data/model'
 export const SMART = 'var(--smart)', CORE = 'var(--core)'
 export const EST_COLOR: Record<Estatus, string> = { pendiente: 'var(--faint)', agendado: 'var(--gold)', realizado: 'var(--core)' }
 export const EST_LABEL: Record<Estatus, string> = { pendiente: 'Pendiente', agendado: 'Agendado', realizado: 'Realizado' }
-export const SERV_SHORT: Record<string, string> = { uso: 'Uso', prof: 'Prof.', didac: 'Didác.' }
+export const SERV_LABEL: Record<string, string> = { uso: 'Uso', prof: 'Profundización', didac: 'Didáctica Específica' }
 export const URG_BG: Record<Urgencia, string | undefined> = { vencido: 'var(--gold-wash)', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
 export const tierLabel = (k: TierKey) => TIER_SEED.find((t) => t.key === k)?.label ?? k
 
