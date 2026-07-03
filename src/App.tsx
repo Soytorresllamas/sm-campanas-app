@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import logoSM from './assets/logo-sm.svg'
+import { Toaster } from './ui/toast'
+import { RouteSkeleton } from './ui/Skeleton'
 
 const Simulador = lazy(() => import('./pages/Simulador.tsx'))
 const Planeacion = lazy(() => import('./pages/Planeacion.tsx'))
@@ -32,7 +34,7 @@ export default function App() {
       </header>
       )}
       <main className={esPortal ? undefined : 'page'}>
-        <Suspense fallback={<div className="route-loading">Cargando…</div>}>
+        <Suspense fallback={<RouteSkeleton />}>
           <Routes>
             <Route path="/" element={<Navigate to="/simulador" replace />} />
             <Route path="/simulador" element={<Simulador />} />
@@ -47,6 +49,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
+      <Toaster />
     </>
   )
 }

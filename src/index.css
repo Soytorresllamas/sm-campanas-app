@@ -49,7 +49,12 @@ select{width:100%;padding:5px;border:1px solid var(--line);border-radius:8px;fon
 .seg{display:flex;gap:4px;margin-bottom:8px;}
 .seg button{flex:1;background:var(--panel-bg);color:var(--ink-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 0;font-size:11.5px;font-family:inherit;cursor:pointer;}
 .seg button.on{background:var(--red);color:#fff;border-color:var(--red);}
-button.sec{background:var(--panel-bg);color:var(--ink-2);border:1px solid var(--line-2);border-radius:8px;padding:7px 11px;font-size:12px;font-family:inherit;cursor:pointer;}
+/* ── Seg animado: indicador deslizante detrás de botones de igual ancho ── */
+.seg.seg-anim{position:relative;background:var(--panel-bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:0;}
+.seg-anim .seg-ind{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/var(--seg-n));transform:translateX(calc(var(--seg-i)*100%));background:var(--red);border-radius:8px;transition:transform .3s cubic-bezier(.22,1,.36,1);box-shadow:0 1px 4px rgba(228,5,33,.28);}
+.seg-anim button{position:relative;z-index:1;background:transparent;border:none;border-radius:8px;transition:color .2s ease;}
+.seg-anim button.on{background:transparent;border:none;color:#fff;}
+button.sec,a.sec,label.sec{background:var(--panel-bg);color:var(--ink-2);border:1px solid var(--line-2);border-radius:8px;padding:7px 11px;font-size:12px;font-family:inherit;cursor:pointer;}
 .row-btn{display:flex;gap:6px;flex-wrap:wrap;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 13px;}
@@ -176,3 +181,42 @@ body.g-dragging,body.g-dragging .g-bar{cursor:grabbing !important;}
 .md{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 24px;font-size:14px;line-height:1.6;}
 .md h1{font-size:24px;} .md h2{font-size:18px;margin-top:22px;font-style:normal;} .md h3{font-size:14px;font-family:inherit;font-style:normal;font-weight:700;}
 .md table{font-size:12.5px;margin:10px 0;} .md code{background:var(--panel-bg);padding:1px 4px;border-radius:4px;}
+
+/* ════ Upgrade de experiencia (patrones 21st.dev adaptados a los tokens SM) ════ */
+
+/* Micro-interacciones globales: presión en botones y foco visible consistente */
+button{transition:transform .12s ease,background .15s ease,border-color .15s ease,color .15s ease,opacity .15s ease;}
+button:active:not(:disabled){transform:scale(.97);}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--smart);box-shadow:0 0 0 3px rgba(37,99,176,.14);}
+button:focus-visible,a:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(37,99,176,.22);border-radius:8px;}
+
+/* KPI cards: elevación sutil al pasar el cursor */
+.kpi{transition:transform .18s ease,border-color .18s ease;}
+.kpi:hover{transform:translateY(-2px);border-color:var(--line-2);}
+.kpi .v{font-variant-numeric:tabular-nums;}
+
+/* Toasts (feedback flotante) */
+.toaster{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:90;pointer-events:none;}
+.toast{display:flex;align-items:center;gap:9px;background:var(--ink);color:#fff;font-size:13px;font-weight:500;padding:11px 15px;border-radius:11px;box-shadow:0 8px 22px rgba(21,23,28,.24);max-width:360px;animation:toastIn .32s cubic-bezier(.22,1,.36,1);}
+.toast.out{opacity:0;transform:translateY(8px);transition:opacity .35s ease,transform .35s ease;}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.97);}to{opacity:1;transform:none;}}
+@media(max-width:560px){.toaster{left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));}.toast{max-width:none;}}
+
+/* Skeleton shimmer (fallback de rutas lazy) */
+.sk{display:block;background:linear-gradient(100deg,var(--line) 40%,var(--panel-bg) 50%,var(--line) 60%);background-size:200% 100%;animation:skShimmer 1.3s linear infinite;}
+@keyframes skShimmer{to{background-position:-200% 0;}}
+
+/* Bottom sheet del portal: entrada con resorte + telón que aparece */
+.sheet-backdrop{animation:backdropIn .25s ease;}
+.sheet{animation:sheetUp .38s cubic-bezier(.22,1,.36,1);}
+@keyframes backdropIn{from{opacity:0;}to{opacity:1;}}
+@keyframes sheetUp{from{transform:translateY(46px);opacity:.6;}to{transform:none;opacity:1;}}
+
+/* Entrada escalonada de tarjetas (portal del asesor) */
+.card-in{animation:cardIn .42s cubic-bezier(.22,1,.36,1) backwards;animation-delay:calc(var(--i,0)*45ms);}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+/* Accesibilidad: sin movimiento para quien lo pide */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;}
+}

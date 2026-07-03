@@ -11,6 +11,9 @@ import {
 import type { PlaneacionData, Estatus, Servicio, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 import { leerArchivo, mapearFilas } from '../lib/importColegios'
+import { NumberTicker } from '../ui/NumberTicker'
+import { Seg } from '../ui/Seg'
+import { toast } from '../ui/toastBus'
 import { ColegioCard, ServLabel } from '../features/planeacion/ColegioCard'
 import { SMART, CORE, EST_COLOR, EST_LABEL, URG_BG, tierLabel } from '../features/planeacion/colors'
 
@@ -107,8 +110,10 @@ export default function Planeacion() {
           `${resumen.asignados} asignados a asesor · ${resumen.asesoresNuevos} asesores nuevos.`,
         errores,
       })
+      toast(`${resumen.colegios} colegios importados de «${file.name}»`, errores.length ? 'err' : 'ok')
     } catch (err) {
       setImportInfo({ msg: `No se pudo leer el archivo: ${err instanceof Error ? err.message : String(err)}`, errores: [] })
+      toast('No se pudo leer el archivo', 'err')
     }
   }
 
@@ -200,7 +205,7 @@ export default function Planeacion() {
   const sinAsignarServ = data.colegios.reduce((s, c) => s + (c.asesorId ? 0 : c.servicios.length), 0)
   // alertas de caso crítico levantadas por los asesores desde su portal
   const alertasPend = (data.alertas ?? []).filter((a) => !a.atendida).sort((a, b) => b.fecha.localeCompare(a.fecha))
-  const atender = (id: string) => setData((d) => atenderAlerta(d, id))
+  const atender = (id: string) => { setData((d) => atenderAlerta(d, id)); toast('Alerta marcada como atendida', 'ok') }
   const nombreAsesor = (id: string) => data.asesores.find((a) => a.id === id)?.nombre ?? id
   const nombreColegio = (id: string) => data.colegios.find((c) => c.id === id)?.nombre ?? id
 
@@ -211,20 +216,21 @@ export default function Planeacion() {
         (matriz del Simulador). Lo que no asignes lo cubren externos. <b>· {status}</b></div>
 
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
-        <div className="kpi"><div className="v">{res.total}</div><div className="l">Cupos totales</div></div>
-        <div className="kpi good"><div className="v">{res.asignados}</div><div className="l">Asignados</div></div>
-        <div className="kpi warn"><div className="v">{res.sinAsignar}</div><div className="l">Sin asignar (externos)</div></div>
+        <div className="kpi"><div className="v"><NumberTicker value={res.total} /></div><div className="l">Cupos totales</div></div>
+        <div className="kpi good"><div className="v"><NumberTicker value={res.asignados} /></div><div className="l">Asignados</div></div>
+        <div className="kpi warn"><div className="v"><NumberTicker value={res.sinAsignar} /></div><div className="l">Sin asignar (externos)</div></div>
       </div>
 
       <div className="row-btn" style={{ margin: '10px 0' }}>
         <button className="sec" onClick={regenerar}>Regenerar cupos</button>
       </div>
 
-      <div className="seg" style={{ maxWidth: 520, margin: '0 0 12px' }}>
-        <button className={view === 'asignacion' ? 'on' : ''} onClick={() => setView('asignacion')}>Asignación</button>
-        <button className={view === 'hoja' ? 'on' : ''} onClick={() => setView('hoja')}>Hoja del asesor</button>
-        <button className={view === 'resumen' ? 'on' : ''} onClick={() => setView('resumen')}>Resumen</button>
-      </div>
+      <Seg maxWidth={520} style={{ margin: '0 0 12px' }} value={view} onChange={setView}
+        options={[
+          { key: 'asignacion', label: 'Asignación' },
+          { key: 'hoja', label: 'Hoja del asesor' },
+          { key: 'resumen', label: 'Resumen' },
+        ]} />
 
       {view === 'resumen' && (<>
         <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))' }}>
@@ -414,10 +420,8 @@ export default function Planeacion() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
-                <div className="seg" style={{ maxWidth: 260 }}>
-                  <button className={hojaView === 'colegio' ? 'on' : ''} onClick={() => setHojaView('colegio')}>Por colegio</button>
-                  <button className={hojaView === 'agenda' ? 'on' : ''} onClick={() => setHojaView('agenda')}>Agenda</button>
-                </div>
+                <Seg maxWidth={260} style={{ margin: 0 }} value={hojaView} onChange={setHojaView}
+                  options={[{ key: 'colegio', label: 'Por colegio' }, { key: 'agenda', label: 'Agenda' }]} />
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="🔍 Buscar colegio…"
                   aria-label="Buscar colegio por nombre" style={{ width: 160, fontSize: 12, padding: '5px 8px' }} />
                 <select value={fEstatus} onChange={(e) => setFEstatus(e.target.value as typeof fEstatus)} style={{ width: 'auto' }}>

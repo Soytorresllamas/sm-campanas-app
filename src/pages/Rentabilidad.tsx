@@ -10,6 +10,8 @@ import {
 import type { PlaneacionData, Servicio, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 import { SMART, CORE, EST_LABEL, SERV_LABEL, tierLabel } from '../features/planeacion/colors'
+import { NumberTicker } from '../ui/NumberTicker'
+import { Seg } from '../ui/Seg'
 
 const mxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 const fmt = (n: number | null | undefined): string => (n === null || n === undefined ? '—' : mxn.format(n))
@@ -141,11 +143,11 @@ export default function Rentabilidad() {
         Responsable Logística en su hoja. <b>· {status}</b></div>
 
       <div className="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 12 }}>
-        <div className="kpi"><div className="v">{fmt(global.conValor ? global.valor : null)}</div><div className="l">Valor de cartera ({global.conValor} colegios con valor)</div></div>
-        <div className="kpi"><div className="v">{fmt(global.costo)}</div><div className="l">Costo capturado ({global.conCosto} servicios)</div></div>
-        <div className="kpi good"><div className="v" style={margenStyle(global.conValor ? global.margen : null)}>{fmt(global.conValor ? global.margen : null)}</div><div className="l">Margen</div></div>
-        <div className="kpi"><div className="v">{pctRent === null ? '—' : `${pctRent.toFixed(1)}%`}</div><div className="l">Rentabilidad</div></div>
-        <div className="kpi"><div className="v">{global.servicios ? Math.round((global.externos / global.servicios) * 100) : 0}%</div><div className="l">Servicios de externos</div></div>
+        <div className="kpi"><div className="v">{global.conValor ? <NumberTicker value={global.valor} format={(n) => mxn.format(n)} /> : '—'}</div><div className="l">Valor de cartera ({global.conValor} colegios con valor)</div></div>
+        <div className="kpi"><div className="v"><NumberTicker value={global.costo} format={(n) => mxn.format(n)} /></div><div className="l">Costo capturado ({global.conCosto} servicios)</div></div>
+        <div className="kpi good"><div className="v" style={margenStyle(global.conValor ? global.margen : null)}>{global.conValor ? <NumberTicker value={global.margen} format={(n) => mxn.format(n)} /> : '—'}</div><div className="l">Margen</div></div>
+        <div className="kpi"><div className="v">{pctRent === null ? '—' : <NumberTicker value={pctRent} format={(n) => `${n.toFixed(1)}%`} />}</div><div className="l">Rentabilidad</div></div>
+        <div className="kpi"><div className="v"><NumberTicker value={global.servicios ? (global.externos / global.servicios) * 100 : 0} format={(n) => `${Math.round(n)}%`} /></div><div className="l">Servicios de externos</div></div>
       </div>
 
       {global.conValor === 0 && (
@@ -156,20 +158,15 @@ export default function Rentabilidad() {
         </div>
       )}
 
-      <div className="seg" style={{ maxWidth: 340 }}>
-        <button className={view === 'analisis' ? 'on' : ''} onClick={() => setView('analisis')}>Análisis</button>
-        <button className={view === 'logistica' ? 'on' : ''} onClick={() => setView('logistica')}>Hoja logística</button>
-      </div>
+      <Seg maxWidth={340} value={view} onChange={setView}
+        options={[{ key: 'analisis', label: 'Análisis' }, { key: 'logistica', label: 'Hoja logística' }]} />
 
       {view === 'analisis' && (<>
         <div className="panel">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
             <h3 style={{ margin: 0, flex: 1 }}>Agregado</h3>
-            <div className="seg" style={{ margin: 0, maxWidth: 560 }}>
-              {GRUPOS.map((g) => (
-                <button key={g.key} className={grupo === g.key ? 'on' : ''} onClick={() => setGrupo(g.key)}>{g.label}</button>
-              ))}
-            </div>
+            <Seg maxWidth={560} style={{ margin: 0, flex: '1 1 320px' }} value={grupo} onChange={setGrupo}
+              options={GRUPOS.map((g) => ({ key: g.key, label: g.label }))} />
           </div>
           <table>
             <thead><tr><th>{GRUPOS.find((g) => g.key === grupo)?.label.replace('Por ', '')}</th><th>Colegios</th><th>Valor</th><th>Costo</th><th>Margen</th><th>Rent.</th><th>Realizados</th></tr></thead>

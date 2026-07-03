@@ -9,6 +9,8 @@ import type { PlaneacionData, Servicio, Colegio, ProblemaKey } from '../data/pla
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 import { ColegioCard, ServLabel } from '../features/planeacion/ColegioCard'
 import { EST_COLOR, URG_BG, SMART, CORE } from '../features/planeacion/colors'
+import { NumberTicker } from '../ui/NumberTicker'
+import { ProgressRing } from '../ui/ProgressRing'
 import logoSM from '../assets/logo-sm.svg'
 
 // ─── Portal del asesor (MOCKUP, móvil-first) ──────────────────────────────────
@@ -208,10 +210,13 @@ export default function HojaAsesor() {
         ) : (<>
           {/* KPIs */}
           <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(118px,1fr))' }}>
-            <div className={`kpi ${ag.vencidos > 0 ? 'warn' : ''}`}><div className="v">{ag.vencidos}</div><div className="l">Vencidos</div></div>
-            <div className="kpi"><div className="v">{ag.estaSemana}</div><div className="l">Próx. 7 días</div></div>
-            <div className="kpi"><div className="v">{ag.porHacer}</div><div className="l">Por hacer</div></div>
-            <div className="kpi good"><div className="v">{pct}%</div><div className="l">Avance ({carga.realizados}/{carga.servicios})</div></div>
+            <div className={`kpi ${ag.vencidos > 0 ? 'warn' : ''}`}><div className="v"><NumberTicker value={ag.vencidos} /></div><div className="l">Vencidos</div></div>
+            <div className="kpi"><div className="v"><NumberTicker value={ag.estaSemana} /></div><div className="l">Próx. 7 días</div></div>
+            <div className="kpi"><div className="v"><NumberTicker value={ag.porHacer} /></div><div className="l">Por hacer</div></div>
+            <div className="kpi" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <ProgressRing pct={pct} />
+              <div className="l" style={{ marginTop: 0 }}>Avance<br />({carga.realizados}/{carga.servicios})</div>
+            </div>
           </div>
           <div style={{ height: 8, borderRadius: 8, background: 'var(--track)', overflow: 'hidden', margin: '2px 0 14px' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: EST_COLOR.realizado }} />
@@ -312,11 +317,13 @@ export default function HojaAsesor() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
               {visibles.map((c, idxV) => (
-                <ColegioCard key={c.id} c={c} hoy={hoy} abierto={abiertoCard(c.id, idxV)}
-                  onToggle={() => toggleCard(c.id)}
-                  onServ={(i, p) => setServ(c.id, i, p)}
-                  onPatch={(p) => patchCol(c.id, p)}
-                  onReportar={() => abrirAlerta(c.id)} />
+                <div key={c.id} className="card-in" style={{ ['--i' as string]: Math.min(idxV, 8) }}>
+                  <ColegioCard c={c} hoy={hoy} abierto={abiertoCard(c.id, idxV)}
+                    onToggle={() => toggleCard(c.id)}
+                    onServ={(i, p) => setServ(c.id, i, p)}
+                    onPatch={(p) => patchCol(c.id, p)}
+                    onReportar={() => abrirAlerta(c.id)} />
+                </div>
               ))}
             </div>
           )}
@@ -333,9 +340,9 @@ export default function HojaAsesor() {
 
       {/* Modal de alerta (bottom sheet) */}
       {alertaOpen && (
-        <div onClick={() => setAlertaOpen(false)}
+        <div className="sheet-backdrop" onClick={() => setAlertaOpen(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,26,.45)', zIndex: 70, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div ref={dialogRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Reportar caso crítico"
+          <div ref={dialogRef} className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Reportar caso crítico"
             style={{ background: 'var(--surface)', borderRadius: '16px 16px 0 0', padding: '16px 16px 24px', width: '100%', maxWidth: 560, boxSizing: 'border-box', boxShadow: '0 -6px 24px rgba(0,0,0,.18)' }}>
             {alSent ? (
               <div style={{ textAlign: 'center', padding: '10px 0' }}>
