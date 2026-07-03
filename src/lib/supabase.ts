@@ -11,3 +11,6 @@ export const supabase = createClient(URL, KEY, {
 
 export const GANTT_TABLE = 'sm_campanas_gantt'
 export const GANTT_ROW = 'gantt-26-27'
+
+export const PLANEACION_TABLE = 'sm_campanas_planeacion'
+export const PLANEACION_ROW = 'planeacion-26-27'

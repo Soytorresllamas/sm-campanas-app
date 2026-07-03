@@ -19,3 +19,20 @@ create policy "sm_campanas_gantt_anon_all"
   to anon
   using (true)
   with check (true);
+
+-- Tabla de la planeación de servicios (hojas de asesores). Mismo patrón que el Gantt.
+create table if not exists public.sm_campanas_planeacion (
+  id          text primary key,
+  data        jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.sm_campanas_planeacion enable row level security;
+
+drop policy if exists "sm_campanas_planeacion_anon_all" on public.sm_campanas_planeacion;
+create policy "sm_campanas_planeacion_anon_all"
+  on public.sm_campanas_planeacion
+  for all
+  to anon
+  using (true)
+  with check (true);

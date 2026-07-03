@@ -3,6 +3,7 @@ import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import logoSM from './assets/logo-sm.svg'
 
 const Simulador = lazy(() => import('./pages/Simulador.tsx'))
+const Planeacion = lazy(() => import('./pages/Planeacion.tsx'))
 const GanttMarketing = lazy(() => import('./pages/GanttMarketing.tsx'))
 const Streamgraph = lazy(() => import('./pages/Streamgraph.tsx'))
 const Documentos = lazy(() => import('./pages/Documentos.tsx'))
@@ -18,6 +19,7 @@ export default function App() {
           </div>
           <nav className="nav">
             <NavLink to="/simulador">Simulador</NavLink>
+            <NavLink to="/planeacion">Planeación</NavLink>
             <NavLink to="/gantt">Gantt marketing</NavLink>
           </nav>
         </div>
@@ -27,6 +29,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/simulador" replace />} />
             <Route path="/simulador" element={<Simulador />} />
+            <Route path="/planeacion" element={<Planeacion />} />
             <Route path="/gantt" element={<GanttMarketing />} />
             {/* Streamgraph y Documentos quedan accesibles por URL (#/servicios, #/documentos) pero fuera del menú. */}
             <Route path="/servicios" element={<Streamgraph />} />

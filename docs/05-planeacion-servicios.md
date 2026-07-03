@@ -1,7 +1,7 @@
 # 05 · Planeación de servicios académicos (hojas de asesores)
 
-**Estado:** diseño aprobado, **pendiente de implementar** (rama `nueva-logica`).
-**Archivos previstos:** `src/pages/Planeacion.tsx` (+ `src/features/planeacion/` si crece) · `src/lib/planeacionStore.ts` (Supabase) · lee la matriz de tipos de `src/data/model.ts`.
+**Estado:** **Fase 1 implementada** (generación de cupos + asignación), Fases 2-3 pendientes (rama `nueva-logica`).
+**Archivos:** `src/data/planeacion.ts` (lógica pura + tipos) · `src/data/planeacion.test.ts` (pruebas) · `src/lib/planeacionStore.ts` (Supabase, tabla `sm_campanas_planeacion`) · `src/pages/Planeacion.tsx` (UI) · lee la matriz de tipos de `src/data/model.ts`.
 
 Es la capa **operativa** debajo del Simulador. El Simulador planea en **agregado** ("se necesitan X servicios en Y colegios, con esta capacidad"); esta hoja baja al **quién ejecuta**: a cada **asesor empleado** se le asignan colegios y él registra el avance servicio por servicio.
 
@@ -109,12 +109,12 @@ El modelo ya queda listo para carga real de colegios:
 
 ## 9. Plan de construcción (MVP por fases)
 
-1. **Generación + asignación:** tipos, store de Supabase, generación de cupos desde el Simulador, pool filtrable, asignación manual múltiple.
-2. **Hoja del asesor:** tarjetas por colegio, estatus, fechas, barra de avance.
-3. **Resumen + reconciliación:** rollups por asesor/global y semáforo vs. capacidad.
+1. ✅ **Generación + asignación (hecha):** tipos, store de Supabase, generación de cupos desde el Simulador, y **asignación por (campaña × tipo) en tandas** — como los cupos son anónimos e intercambiables dentro de un tipo, se asigna "N cupos de SMART-Top a un asesor" en vez de colegio por colegio (más usable y sigue siendo manual). Helpers `asignarPorTipo` / `liberarPorTipo` / `contarPorTipo`.
+2. **Hoja del asesor (pendiente):** tarjetas por colegio, estatus, fechas, barra de avance.
+3. **Resumen + reconciliación (pendiente):** rollups por asesor/global y semáforo vs. capacidad.
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.
 
-Nueva ruta `#/planeacion` y su `NavLink` en `src/App.tsx`.
+Ruta `#/planeacion` con su `NavLink` en `src/App.tsx`. La tabla `sm_campanas_planeacion` está en `supabase_setup.sql`; mientras no se cree, la app **degrada a `localStorage`** ("Sin conexión · local").
 
 ---
 
