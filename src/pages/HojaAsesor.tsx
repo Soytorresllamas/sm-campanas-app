@@ -33,6 +33,7 @@ export default function HojaAsesor() {
   // null = colapso por defecto (solo la primera tarjeta abierta); al tocar se materializa el set
   const [expandidos, setExpandidos] = useState<Set<string> | null>(null)
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
+  const [notasCol, setNotasCol] = useState<Set<string>>(new Set())
   // filtros de la cartera
   const [busca, setBusca] = useState('')
   const [fCamp, setFCamp] = useState<'todos' | Campaign>('todos')
@@ -151,6 +152,14 @@ export default function HojaAsesor() {
     if (n.has(id)) n.delete(id); else n.add(id)
     return n
   })
+  const toggleNotas = (id: string) => setNotasCol((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  // color de cada segmento de la barra unificada, según el estado del servicio
+  const segColor = (s: Servicio) => {
+    if (s.estatus === 'realizado') return EST_COLOR.realizado
+    if (urgencia(s, hoy) === 'vencido') return '#E08A2E'
+    if (s.estatus === 'agendado') return '#C99A3C'
+    return '#D7DBE0'
+  }
 
   const setServ = (colegioId: string, idx: number, patch: Partial<Servicio>) =>
     setData((d) => ({ ...d, colegios: setServicio(d.colegios, colegioId, idx, patch) }))
@@ -175,14 +184,6 @@ export default function HojaAsesor() {
     {u === 'vencido' && <span style={{ color: '#B5841C', fontSize: 9, marginLeft: 3 }}>· Vencido</span>}
     {u === 'proximo' && <span style={{ color: SMART, fontSize: 9, marginLeft: 3 }}>· Próximo</span>}
   </>)
-  const tipoChips = (servicios: Servicio[]) => (['uso', 'prof', 'didac'] as const).map((t) => {
-    const tot = servicios.filter((s) => s.tipo === t).length
-    if (!tot) return null
-    const done = servicios.filter((s) => s.tipo === t && s.estatus === 'realizado').length
-    const full = done === tot
-    return <span key={t} style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
-      background: full ? '#E3F1EC' : '#EEF1F4', color: full ? '#1F6B5C' : '#646A75' }}>{SERV_SHORT[t]} {done}/{tot}</span>
-  })
   // nota (móvil): línea propia debajo del servicio
   const notaLinea = (colId: string, idx: number, s: Servicio) => {
     const key = colId + ':' + idx
@@ -332,74 +333,90 @@ export default function HojaAsesor() {
                 const done = c.servicios.filter((s) => s.estatus === 'realizado').length
                 const total = c.servicios.length
                 const abierto = abiertoCard(c.id, idxV)
+                const notasOpen = notasCol.has(c.id)
                 return (
                   <div key={c.id} className="panel" style={{ margin: 0 }}>
-                    <div onClick={() => toggleCard(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, cursor: 'pointer' }}>
-                      <span style={{ fontSize: 11, color: '#646A75', width: 12 }}>{abierto ? '▾' : '▸'}</span>
+                    {/* header (togglea toda la fila) */}
+                    <div onClick={() => toggleCard(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                      <span style={{ fontSize: 11, color: '#646A75', width: 12, flex: '0 0 auto' }}>{abierto ? '▾' : '▸'}</span>
                       <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
                       <b style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</b>
-                      {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
+                      {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15, flex: '0 0 auto' }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
                       <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
                     </div>
-                    <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 4 }}>
-                      <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
+                    {/* resumen unificado: barra segmentada por servicio + X/Y (reemplaza barra vacía + chips) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 2px' }}>
+                      <div style={{ display: 'flex', gap: 2, flex: 1, minWidth: 60 }}>
+                        {c.servicios.map((s, i) => (
+                          <span key={i} title={`${SERV_SHORT[s.tipo]} · ${EST_LABEL[s.estatus]}`}
+                            style={{ flex: 1, height: 7, borderRadius: 2, background: segColor(s) }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto', whiteSpace: 'nowrap', fontWeight: 600 }}>{done}/{total} hechos</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-                      {tipoChips(c.servicios)}
-                      <span style={{ fontSize: 10, color: '#646A75' }}>· {done}/{total} realizados</span>
-                      {(c.serie || c.ingles) && <span style={{ fontSize: 10, color: '#8A8F99' }}>· {[c.serie, c.ingles].filter(Boolean).join(' · ')}</span>}
-                    </div>
+                    {(c.serie || c.ingles) && <div style={{ fontSize: 10, color: '#8A8F99' }}>{[c.serie, c.ingles].filter(Boolean).join(' · ')}</div>}
+
                     {abierto && (<>
-                      {c.servicios.map((s, i) => {
-                        const u = urgencia(s, hoy)
-                        const key = c.id + ':' + i
-                        return (
-                          <Fragment key={i}>
-                            <div style={{ background: URG_BG[u], borderBottom: '1px solid #F0F2F5', padding: '7px 4px', borderRadius: 6 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <input type="checkbox" checked={s.estatus === 'realizado'} aria-label="Marcar realizado"
-                                  style={{ transform: 'scale(1.2)', flex: '0 0 auto' }}
+                      {/* sub-tareas: una línea cada una (check · nombre · fecha contextual · estatus · nota) */}
+                      <div style={{ marginTop: 7 }}>
+                        {c.servicios.map((s, i) => {
+                          const u = urgencia(s, hoy)
+                          const key = c.id + ':' + i
+                          const real = s.estatus === 'realizado'
+                          return (
+                            <Fragment key={i}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(30px,1fr) auto auto 20px', alignItems: 'center', gap: 5,
+                                background: URG_BG[u], borderBottom: '1px solid #F0F2F5', padding: '4px 2px', borderRadius: 5 }}>
+                                <input type="checkbox" checked={real} aria-label="Marcar realizado" style={{ transform: 'scale(1.15)' }}
                                   onChange={(e) => e.target.checked
                                     ? setServ(c.id, i, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
                                     : setServ(c.id, i, { estatus: s.fechaPlan ? 'agendado' : 'pendiente', fechaReal: undefined })} />
-                                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600 }}>{servLabel(s, u)}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{servLabel(s, u)}</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: '#8A8F99' }} title={real ? 'Fecha real' : 'Fecha planeada'}>
+                                  {real ? 'R' : 'P'}
+                                  <input type="date" aria-label={real ? 'Fecha real' : 'Fecha planeada'} value={(real ? s.fechaReal : s.fechaPlan) ?? ''}
+                                    onChange={(e) => setServ(c.id, i, real ? { fechaReal: e.target.value || undefined } : { fechaPlan: e.target.value || undefined })}
+                                    style={{ fontSize: 10.5, padding: '3px 1px', width: 94 }} />
+                                </span>
                                 <select value={s.estatus} aria-label="Estatus del servicio"
                                   onChange={(e) => { const est = e.target.value as Estatus; setServ(c.id, i, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
-                                  style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 12, padding: '5px 4px', width: 'auto', minWidth: 104, flex: '0 0 auto' }}>
+                                  style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '3px 1px', width: 'auto', minWidth: 84 }}>
                                   {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
                                 </select>
                                 <button title={s.nota ? 'Editar nota' : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
-                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, opacity: s.nota ? 1 : 0.4, flex: '0 0 auto', padding: '2px 4px' }}>✎</button>
-                              </div>
-                              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 5, paddingLeft: 28, fontSize: 11, color: '#646A75', flexWrap: 'wrap' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Plan.
-                                  <input type="date" aria-label="Fecha planeada" value={s.fechaPlan ?? ''}
-                                    onChange={(e) => setServ(c.id, i, { fechaPlan: e.target.value || undefined })}
-                                    style={{ fontSize: 12, padding: '4px 3px', width: 122 }} /></label>
-                                {s.estatus === 'realizado'
-                                  ? <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Real
-                                      <input type="date" aria-label="Fecha real" value={s.fechaReal ?? ''}
-                                        onChange={(e) => setServ(c.id, i, { fechaReal: e.target.value || undefined })}
-                                        style={{ fontSize: 12, padding: '4px 3px', width: 122 }} /></label>
-                                  : <span>Real —</span>}
+                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, opacity: s.nota ? 1 : 0.4, padding: 0 }}>✎</button>
                               </div>
                               {notaLinea(c.id, i, s)}
-                            </div>
-                          </Fragment>
-                        )
-                      })}
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, fontSize: 11, color: '#646A75', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>Satisfacción:
-                          {SATISFACCION.map((s) => (
-                            <button key={s.v} title={s.label} onClick={() => patchCol(c.id, { satisfaccion: c.satisfaccion === s.v ? undefined : s.v })}
-                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 19, lineHeight: 1, padding: '0 2px', opacity: c.satisfaccion === s.v ? 1 : 0.3, filter: c.satisfaccion === s.v ? 'none' : 'grayscale(1)' }}>{s.emoji}</button>
-                          ))}
-                        </span>
-                        <button className="sec" style={{ marginLeft: 'auto' }} onClick={() => abrirAlerta(c.id)}>🚨 Reportar caso</button>
+                            </Fragment>
+                          )
+                        })}
                       </div>
-                      <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…"
-                        onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
-                        style={{ width: '100%', fontSize: 13, padding: '6px 8px', marginTop: 6, boxSizing: 'border-box', minHeight: 44, resize: 'vertical' }} />
+
+                      {/* footer tintado: satisfacción (control único) izq · reportar caso (secundario) der */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8, padding: '8px 10px', background: '#F6F8FA', borderRadius: 8 }}>
+                        <label style={{ fontSize: 11, color: '#646A75', display: 'flex', alignItems: 'center', gap: 5 }}>Satisfacción
+                          <select value={c.satisfaccion ?? ''} aria-label="Satisfacción general"
+                            onChange={(e) => patchCol(c.id, { satisfaccion: e.target.value ? Number(e.target.value) : undefined })}
+                            style={{ width: 'auto', fontSize: 13, padding: '4px 4px' }}>
+                            <option value="">Sin calificar</option>
+                            {SATISFACCION.map((s) => <option key={s.v} value={s.v}>{s.emoji} {s.label}</option>)}
+                          </select>
+                        </label>
+                        <button className="sec" onClick={() => abrirAlerta(c.id)}
+                          style={{ marginLeft: 'auto', color: ROJO, borderColor: '#E7C7C9', fontSize: 12 }}>🚨 Reportar caso</button>
+                      </div>
+
+                      {/* notas generales tras disclosure */}
+                      <button onClick={() => toggleNotas(c.id)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#646A75', padding: '6px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {notasOpen ? '▾' : '▸'} Notas generales
+                        {c.notasGenerales && !notasOpen ? <span style={{ width: 6, height: 6, borderRadius: 6, background: SMART, display: 'inline-block' }} /> : null}
+                      </button>
+                      {notasOpen && (
+                        <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…" autoFocus
+                          onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
+                          style={{ width: '100%', fontSize: 13, padding: '6px 8px', marginTop: 4, boxSizing: 'border-box', minHeight: 44, resize: 'vertical' }} />
+                      )}
                     </>)}
                   </div>
                 )
