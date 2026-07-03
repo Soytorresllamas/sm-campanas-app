@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
   contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, avanceAsignado, ESTATUS,
+  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor,
 } from '../data/planeacion'
-import type { PlaneacionData, Estatus, Servicio } from '../data/planeacion'
+import type { PlaneacionData, Estatus, Servicio, Urgencia } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 
 const SMART = '#2563B0', CORE = '#2C8A7B'
@@ -22,6 +23,12 @@ export default function Planeacion() {
   const [targetSel, setTargetSel] = useState('')
   const [amounts, setAmounts] = useState<Record<string, number>>({})
   const [view, setView] = useState<'asignacion' | 'hoja' | 'resumen'>('asignacion')
+  const [hojaView, setHojaView] = useState<'colegio' | 'agenda'>('colegio')
+  const [fEstatus, setFEstatus] = useState<'todos' | 'pendiente' | 'agendado' | 'realizado' | 'vencidos'>('todos')
+  const [fCamp, setFCamp] = useState<'todos' | Campaign>('todos')
+  const [fTier, setFTier] = useState<'todos' | TierKey>('todos')
+  const [colapsados, setColapsados] = useState<Set<string>>(new Set())
+  const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
 
   // carga remota inicial: lo remoto gana si existe
   useEffect(() => {
@@ -70,6 +77,59 @@ export default function Planeacion() {
   const misColegios = data.colegios.filter((c) => c.asesorId === target)
   const cargaT = cargaAsesor(data.colegios, target)
   const pctT = cargaT.servicios ? Math.round((cargaT.realizados / cargaT.servicios) * 100) : 0
+
+  // agenda / filtros de la hoja
+  const hoy = hoyISO()
+  const ag = agendaAsesor(data.colegios, target, hoy)
+  const pasa = (campaign: Campaign, tier: TierKey, s: Servicio): boolean => {
+    if (fCamp !== 'todos' && campaign !== fCamp) return false
+    if (fTier !== 'todos' && tier !== fTier) return false
+    if (fEstatus === 'todos') return true
+    if (fEstatus === 'vencidos') return urgencia(s, hoy) === 'vencido'
+    return s.estatus === fEstatus
+  }
+  const toggleColapso = (id: string) => setColapsados((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const URG_BG: Record<Urgencia, string | undefined> = { vencido: '#FBF3E6', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
+  const URG_BADGE: Partial<Record<Urgencia, { t: string; c: string }>> = { vencido: { t: 'Vencido', c: '#B5841C' }, proximo: { t: 'Esta sem.', c: '#2563B0' } }
+  const dateStyle = { fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' as const }
+
+  // controles de un servicio (funciones que devuelven JSX; no son componentes con hooks)
+  const chkHecho = (colId: string, idx: number, s: Servicio) => (
+    <input type="checkbox" checked={s.estatus === 'realizado'} title="Marcar realizado (pone la fecha de hoy)"
+      onChange={(e) => e.target.checked
+        ? setServ(colId, idx, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
+        : setServ(colId, idx, { estatus: 'pendiente', fechaReal: undefined })} />
+  )
+  const selEstatus = (colId: string, idx: number, s: Servicio) => (
+    <select value={s.estatus}
+      onChange={(e) => { const est = e.target.value as Estatus; setServ(colId, idx, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
+      style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '2px 3px', minWidth: 96, width: '100%' }}>
+      {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
+    </select>
+  )
+  const inpPlan = (colId: string, idx: number, s: Servicio) => (
+    <input type="date" value={s.fechaPlan ?? ''} onChange={(e) => setServ(colId, idx, { fechaPlan: e.target.value || undefined })} style={dateStyle} />
+  )
+  const inpReal = (colId: string, idx: number, s: Servicio) => (
+    s.estatus === 'pendiente'
+      ? <span style={{ color: '#B7BCC4' }}>—</span>
+      : <input type="date" value={s.fechaReal ?? ''} onChange={(e) => setServ(colId, idx, { fechaReal: e.target.value || undefined })} style={dateStyle} />
+  )
+  const btnNota = (colId: string, idx: number, s: Servicio) => {
+    const key = colId + ':' + idx
+    return <button title={s.nota ? s.nota : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
+      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, opacity: s.nota ? 1 : 0.4 }}>✎</button>
+  }
+  const inpNota = (colId: string, idx: number, s: Servicio, cols: number) => {
+    const key = colId + ':' + idx
+    if (notaAbierta !== key) return null
+    return (
+      <tr><td colSpan={cols} style={{ padding: '2px 4px' }}>
+        <input value={s.nota ?? ''} autoFocus placeholder="Nota…" onChange={(e) => setServ(colId, idx, { nota: e.target.value || undefined })}
+          style={{ width: '100%', fontSize: 11, padding: '3px 4px', boxSizing: 'border-box' }} />
+      </td></tr>
+    )
+  }
 
   // resumen / reconciliación (capacidad tomada de las semillas del Simulador, como los cupos)
   const av = avanceAsignado(data.colegios)
@@ -202,48 +262,121 @@ export default function Planeacion() {
             {misColegios.length === 0 ? (
               <div className="hint">Este asesor no tiene colegios asignados. Ve a «Asignación» para darle cupos.</div>
             ) : (<>
-              <div className="capnote" style={{ color: '#2C2F36' }}>{cargaT.realizados}/{cargaT.servicios} servicios realizados · {pctT}% ({cargaT.colegios} colegios)</div>
-              <div style={{ height: 8, borderRadius: 8, background: '#EEF1F4', overflow: 'hidden', margin: '6px 0 12px' }}>
+              <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', marginBottom: 8 }}>
+                <div className={`kpi ${ag.vencidos > 0 ? 'warn' : ''}`}><div className="v">{ag.vencidos}</div><div className="l">Vencidos</div></div>
+                <div className="kpi"><div className="v">{ag.estaSemana}</div><div className="l">Esta semana</div></div>
+                <div className="kpi"><div className="v">{ag.porHacer}</div><div className="l">Por hacer</div></div>
+                <div className="kpi good"><div className="v">{pctT}%</div><div className="l">Avance ({cargaT.realizados}/{cargaT.servicios})</div></div>
+              </div>
+              <div style={{ height: 8, borderRadius: 8, background: '#EEF1F4', overflow: 'hidden', margin: '0 0 12px' }}>
                 <div style={{ height: '100%', width: `${pctT}%`, background: EST_COLOR.realizado }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10 }}>
-                {misColegios.map((c) => {
-                  const done = c.servicios.filter((s) => s.estatus === 'realizado').length
-                  const total = c.servicios.length
-                  return (
-                    <div key={c.id} className="panel" style={{ margin: 0 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
-                        <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)}
-                          style={{ flex: 1, minWidth: 0, border: 'none', fontWeight: 600, fontSize: 13, background: 'transparent', padding: 0 }} />
-                        <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
-                      </div>
-                      <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 2 }}>
-                        <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
-                      </div>
-                      <div style={{ fontSize: 10, color: '#646A75', marginBottom: 4 }}>{done}/{total} realizados</div>
-                      <table style={{ fontSize: 11 }}>
-                        <thead><tr><th>Servicio</th><th>Estatus</th><th>Plan.</th><th>Real</th></tr></thead>
-                        <tbody>
-                          {c.servicios.map((s, i) => (
-                            <tr key={i}>
-                              <td style={{ padding: '2px 4px' }}>{SERV_SHORT[s.tipo]}</td>
-                              <td style={{ padding: '2px 4px' }}>
-                                <select value={s.estatus} onChange={(e) => setServ(c.id, i, { estatus: e.target.value as Estatus })}
-                                  style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '2px 3px', minWidth: 88, width: '100%' }}>
-                                  {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
-                                </select>
-                              </td>
-                              <td style={{ padding: '2px 4px' }}><input type="date" value={s.fechaPlan ?? ''} onChange={(e) => setServ(c.id, i, { fechaPlan: e.target.value || undefined })} style={{ fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' }} /></td>
-                              <td style={{ padding: '2px 4px' }}><input type="date" value={s.fechaReal ?? ''} onChange={(e) => setServ(c.id, i, { fechaReal: e.target.value || undefined })} style={{ fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' }} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
-                })}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+                <div className="seg" style={{ maxWidth: 260 }}>
+                  <button className={hojaView === 'colegio' ? 'on' : ''} onClick={() => setHojaView('colegio')}>Por colegio</button>
+                  <button className={hojaView === 'agenda' ? 'on' : ''} onClick={() => setHojaView('agenda')}>Agenda</button>
+                </div>
+                <select value={fEstatus} onChange={(e) => setFEstatus(e.target.value as typeof fEstatus)}>
+                  <option value="todos">Todos los estatus</option>
+                  <option value="pendiente">Pendientes</option>
+                  <option value="agendado">Agendados</option>
+                  <option value="realizado">Realizados</option>
+                  <option value="vencidos">Vencidos</option>
+                </select>
+                <select value={fCamp} onChange={(e) => setFCamp(e.target.value as typeof fCamp)}>
+                  <option value="todos">Ambas campañas</option>
+                  <option value="SMART">SMART</option>
+                  <option value="CORE">CORE</option>
+                </select>
+                <select value={fTier} onChange={(e) => setFTier(e.target.value as typeof fTier)}>
+                  <option value="todos">Todos los tipos</option>
+                  {TIER_SEED.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+                {hojaView === 'colegio' && (
+                  <button className="sec" onClick={() => setColapsados((p) => p.size ? new Set() : new Set(misColegios.map((c) => c.id)))}>
+                    {colapsados.size ? 'Expandir todo' : 'Colapsar todo'}
+                  </button>
+                )}
               </div>
+
+              {hojaView === 'colegio' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 10 }}>
+                  {misColegios.filter((c) => (fCamp === 'todos' || c.campaign === fCamp) && (fTier === 'todos' || c.tier === fTier)).map((c) => {
+                    const visibles = c.servicios.map((s, i) => ({ s, i })).filter(({ s }) => pasa(c.campaign, c.tier, s))
+                    if (visibles.length === 0) return null
+                    const done = c.servicios.filter((s) => s.estatus === 'realizado').length
+                    const total = c.servicios.length
+                    const abierto = !colapsados.has(c.id)
+                    return (
+                      <div key={c.id} className="panel" style={{ margin: 0 }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                          <button onClick={() => toggleColapso(c.id)} title={abierto ? 'Colapsar' : 'Expandir'}
+                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: '#646A75', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
+                          <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
+                          <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)}
+                            style={{ flex: 1, minWidth: 0, border: 'none', fontWeight: 600, fontSize: 13, background: 'transparent', padding: 0 }} />
+                          <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
+                        </div>
+                        <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 2 }}>
+                          <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: '#646A75', marginBottom: 4 }}>{done}/{total} realizados</div>
+                        {abierto && (
+                          <table style={{ fontSize: 11 }}>
+                            <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Plan.</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
+                            <tbody>
+                              {visibles.map(({ s, i }) => {
+                                const u = urgencia(s, hoy); const badge = URG_BADGE[u]
+                                return (
+                                  <Fragment key={i}>
+                                    <tr style={{ background: URG_BG[u] }}>
+                                      <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(c.id, i, s)}</td>
+                                      <td style={{ padding: '2px 4px' }}>{SERV_SHORT[s.tipo]}{badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}</td>
+                                      <td style={{ padding: '2px 4px' }}>{selEstatus(c.id, i, s)}</td>
+                                      <td style={{ padding: '2px 4px' }}>{inpPlan(c.id, i, s)}</td>
+                                      <td style={{ padding: '2px 4px' }}>{inpReal(c.id, i, s)}</td>
+                                      <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(c.id, i, s)}</td>
+                                    </tr>
+                                    {inpNota(c.id, i, s, 6)}
+                                  </Fragment>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <table>
+                  <thead><tr><th style={{ width: 24 }}></th><th>Colegio</th><th>Campaña</th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 24 }}></th></tr></thead>
+                  <tbody>
+                    {serviciosDeAsesor(data.colegios, target)
+                      .filter((r) => pasa(r.campaign, r.tier, r.servicio))
+                      .sort((a, b) => (a.servicio.fechaPlan ?? '9999').localeCompare(b.servicio.fechaPlan ?? '9999'))
+                      .map((r) => {
+                        const u = urgencia(r.servicio, hoy); const badge = URG_BADGE[u]
+                        return (
+                          <Fragment key={r.colegioId + ':' + r.idx}>
+                            <tr style={{ background: URG_BG[u] }}>
+                              <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(r.colegioId, r.idx, r.servicio)}</td>
+                              <td style={{ padding: '2px 4px' }}>{r.colegioNombre}</td>
+                              <td style={{ padding: '2px 4px', color: r.campaign === 'SMART' ? SMART : CORE, whiteSpace: 'nowrap' }}>{r.campaign} · {tierLabel(r.tier)}</td>
+                              <td style={{ padding: '2px 4px' }}>{SERV_SHORT[r.servicio.tipo]}{badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}</td>
+                              <td style={{ padding: '2px 4px', minWidth: 110 }}>{selEstatus(r.colegioId, r.idx, r.servicio)}</td>
+                              <td style={{ padding: '2px 4px' }}>{inpPlan(r.colegioId, r.idx, r.servicio)}</td>
+                              <td style={{ padding: '2px 4px' }}>{inpReal(r.colegioId, r.idx, r.servicio)}</td>
+                              <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(r.colegioId, r.idx, r.servicio)}</td>
+                            </tr>
+                            {inpNota(r.colegioId, r.idx, r.servicio, 8)}
+                          </Fragment>
+                        )
+                      })}
+                  </tbody>
+                </table>
+              )}
             </>)}
           </>)}
         </div>

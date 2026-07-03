@@ -4,7 +4,9 @@ import {
   serviciosDeTier, nColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
   setServicio, renombrarColegio, avanceAsignado,
+  hoyISO, sumarDias, urgencia, agendaAsesor, serviciosDeAsesor,
 } from './planeacion';
+import type { Servicio } from './planeacion';
 
 const tierTop = { key: 'top' as const, label: 'Top', pct: 10, uso: 3, prof: 2, didac: 1 };
 
@@ -134,6 +136,52 @@ describe('asignar / resumen / cargaAsesor', () => {
     expect(carga.realizados).toBe(1);
     // otro asesor no tiene nada
     expect(cargaAsesor(cols, 'ase-2').colegios).toBe(0);
+  });
+});
+
+describe('agenda / urgencia', () => {
+  const hoy = '2026-10-15';
+  const S = (o: Partial<Servicio>): Servicio => ({ tipo: 'uso', estatus: 'pendiente', ...o });
+
+  it('hoyISO formatea la fecha local como YYYY-MM-DD', () => {
+    expect(hoyISO(new Date(2026, 9, 5))).toBe('2026-10-05'); // mes 9 = octubre
+  });
+
+  it('sumarDias suma cruzando mes y año', () => {
+    expect(sumarDias('2026-10-15', 7)).toBe('2026-10-22');
+    expect(sumarDias('2026-10-31', 1)).toBe('2026-11-01');
+    expect(sumarDias('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  it('urgencia clasifica según fecha planeada y estatus', () => {
+    expect(urgencia(S({ estatus: 'realizado', fechaPlan: '2026-01-01' }), hoy)).toBe('realizado');
+    expect(urgencia(S({}), hoy)).toBe('sinfecha');
+    expect(urgencia(S({ fechaPlan: '2026-10-10' }), hoy)).toBe('vencido');
+    expect(urgencia(S({ fechaPlan: '2026-10-18' }), hoy)).toBe('proximo');
+    expect(urgencia(S({ fechaPlan: '2026-12-01' }), hoy)).toBe('agendado');
+  });
+
+  it('agendaAsesor cuenta vencidos, esta semana y por hacer (ignora realizados)', () => {
+    let cols = generateColegios(10, DEFAULTS.tiersSmart, 0, DEFAULTS.tiersCore);
+    const id = cols.find((c) => c.tier === 'top')!.id;
+    cols = asignar(cols, new Set([id]), 'ase-1');
+    cols = setServicio(cols, id, 0, { fechaPlan: '2026-10-10' }); // vencido
+    cols = setServicio(cols, id, 1, { fechaPlan: '2026-10-18' }); // esta semana
+    cols = setServicio(cols, id, 2, { estatus: 'realizado' });    // no cuenta
+    const a = agendaAsesor(cols, 'ase-1', hoy);
+    expect(a.vencidos).toBe(1);
+    expect(a.estaSemana).toBe(1);
+    expect(a.porHacer).toBe(5); // 6 servicios − 1 realizado
+  });
+
+  it('serviciosDeAsesor aplana solo los servicios del asesor', () => {
+    let cols = generateColegios(10, DEFAULTS.tiersSmart, 0, DEFAULTS.tiersCore);
+    const id = cols.find((c) => c.tier === 'top')!.id;
+    cols = asignar(cols, new Set([id]), 'ase-1');
+    const refs = serviciosDeAsesor(cols, 'ase-1');
+    expect(refs).toHaveLength(6);
+    expect(refs.every((r) => r.colegioId === id)).toBe(true);
+    expect(serviciosDeAsesor(cols, 'ase-2')).toHaveLength(0);
   });
 });
 

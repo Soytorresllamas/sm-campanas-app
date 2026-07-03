@@ -145,6 +145,57 @@ export function cargaAsesor(colegios: Colegio[], asesorId: string): Carga {
   return { colegios: cols, servicios, realizados, usoProf };
 }
 
+// ---- Agenda / urgencia (usabilidad de la hoja del asesor) ----
+
+/** Fecha local de hoy en ISO 'YYYY-MM-DD'. */
+export function hoyISO(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Suma días a una fecha ISO (aritmética en UTC para no saltar por horario de verano). */
+export function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+export type Urgencia = 'realizado' | 'vencido' | 'proximo' | 'agendado' | 'sinfecha';
+/** Clasifica un servicio para resaltarlo: vencido (fecha planeada pasada sin hacer), próximo (≤7 días), etc. */
+export function urgencia(s: Servicio, hoy: string): Urgencia {
+  if (s.estatus === 'realizado') return 'realizado';
+  if (!s.fechaPlan) return 'sinfecha';
+  if (s.fechaPlan < hoy) return 'vencido';
+  if (s.fechaPlan <= sumarDias(hoy, 7)) return 'proximo';
+  return 'agendado';
+}
+
+export interface AgendaResumen { vencidos: number; estaSemana: number; porHacer: number; }
+export function agendaAsesor(colegios: Colegio[], asesorId: string, hoy: string): AgendaResumen {
+  let vencidos = 0, estaSemana = 0, porHacer = 0;
+  for (const c of colegios) {
+    if (c.asesorId !== asesorId) continue;
+    for (const s of c.servicios) {
+      if (s.estatus === 'realizado') continue;
+      porHacer++;
+      const u = urgencia(s, hoy);
+      if (u === 'vencido') vencidos++;
+      else if (u === 'proximo') estaSemana++;
+    }
+  }
+  return { vencidos, estaSemana, porHacer };
+}
+
+export interface ServicioRef { colegioId: string; colegioNombre: string; campaign: Campaign; tier: TierKey; idx: number; servicio: Servicio; }
+/** Aplana los servicios de un asesor (para la vista agenda). */
+export function serviciosDeAsesor(colegios: Colegio[], asesorId: string): ServicioRef[] {
+  const out: ServicioRef[] = [];
+  for (const c of colegios) {
+    if (c.asesorId !== asesorId) continue;
+    c.servicios.forEach((servicio, idx) => out.push({ colegioId: c.id, colegioNombre: c.nombre, campaign: c.campaign, tier: c.tier, idx, servicio }));
+  }
+  return out;
+}
+
 export interface Avance { colegios: number; servicios: number; realizados: number; usoProf: number; didac: number; }
 /** Avance agregado sobre los colegios ASIGNADOS (lo que ejecutan los empleados). */
 export function avanceAsignado(colegios: Colegio[]): Avance {

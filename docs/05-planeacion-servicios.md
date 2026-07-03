@@ -110,7 +110,13 @@ El modelo ya queda listo para carga real de colegios:
 ## 9. Plan de construcción (MVP por fases)
 
 1. ✅ **Generación + asignación (hecha):** tipos, store de Supabase, generación de cupos desde el Simulador, y **asignación por (campaña × tipo) en tandas** — como los cupos son anónimos e intercambiables dentro de un tipo, se asigna "N cupos de SMART-Top a un asesor" en vez de colegio por colegio (más usable y sigue siendo manual). Helpers `asignarPorTipo` / `liberarPorTipo` / `contarPorTipo`.
-2. ✅ **Hoja del asesor (hecha):** pestaña «Hoja del asesor»; tarjetas por colegio (nombre editable, campaña/tipo), cada una con su mini-tabla de servicios (estatus pendiente/agendado/realizado, fecha planeada/real) y barra de avance. Helpers `setServicio` / `renombrarColegio`. Barra de avance global del asesor.
+2. ✅ **Hoja del asesor (hecha):** pestaña «Hoja del asesor». Incluye mejoras de usabilidad:
+   - **Resumen de agenda** arriba (vencidos · esta semana · por hacer · % avance) + barra global.
+   - Sub-vistas **Por colegio** (tarjetas colapsables) y **Agenda** (todos los servicios aplanados y ordenados por fecha).
+   - **Filtros** por estatus (incl. «vencidos»), campaña y tipo.
+   - Cada servicio: **checkbox «hecho»** (marca realizado y pone la fecha de hoy automáticamente), estatus, fecha planeada y **fecha real contextual** (oculta si está pendiente), badge/fondo **ámbar** para vencidos, e ✎ **nota** por servicio.
+   - Helpers puros: `setServicio`, `renombrarColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`.
+   - ⏳ Uso en campo (móvil-first) queda para después.
 3. ✅ **Resumen + reconciliación (hecha):** pestaña «Resumen» (a pantalla completa); KPIs de avance de lo asignado, tabla de avance por asesor (con barra y aviso de sobrecarga si su uso/prof supera su capacidad individual ≈ `tDay×dWeek×wMonth×12`), y **reconciliación**: uso/prof asignado a empleados vs. capacidad anual (`nAse×tDay×dWeek×wMonth×12`) con semáforo verde/aviso. Helper `avanceAsignado`; `cargaAsesor` ahora separa `usoProf`. La capacidad sale de `DEFAULTS` (consistente con la generación de cupos).
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.
 
