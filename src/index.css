@@ -8,6 +8,7 @@
   --smart:#2563B0; --core:#2C8A7B; --core-l:#A0CAC4; --smart-l:#9BBFE8;
   --blue:#2563B0; --gold:#B5841C; --gold-l:#DEC899; --pur:#7A4A86; --trans:#8C92A0;
   --green:#157A38; --green-wash:#E7F3EB; --neg:#BE1409; --neg-wash:#FBE9E7;
+  --gold-wash:#FBF3E6; --track:#EEF1F4;
   --ease:cubic-bezier(.16,1,.3,1);
   /* legacy aliases kept for chart code */
   --navy:var(--blue); --navy-l:#9DBBDD; --amber:var(--gold); --mut-old:var(--mut);

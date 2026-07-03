@@ -9,10 +9,10 @@ import {
 import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 
-const SMART = '#2563B0', CORE = '#2C8A7B'
+const SMART = 'var(--smart)', CORE = 'var(--core)'
 const CAMPS: Campaign[] = ['SMART', 'CORE']
 const tierLabel = (k: TierKey) => TIER_SEED.find((t) => t.key === k)?.label ?? k
-const EST_COLOR: Record<Estatus, string> = { pendiente: '#9AA1AC', agendado: '#B5841C', realizado: '#2C8A7B' }
+const EST_COLOR: Record<Estatus, string> = { pendiente: 'var(--faint)', agendado: 'var(--gold)', realizado: 'var(--core)' }
 const EST_LABEL: Record<Estatus, string> = { pendiente: 'Pendiente', agendado: 'Agendado', realizado: 'Realizado' }
 const SERV_SHORT: Record<string, string> = { uso: 'Uso', prof: 'Prof.', didac: 'Didác.' }
 const MESES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -110,7 +110,7 @@ export default function Planeacion() {
   const filtrosActivos = busca !== '' || fEstatus !== 'todos' || fCamp !== 'todos' || fTier !== 'todos' || fSerie !== 'todos' || fIngles !== 'todos' || fSat !== 'todos'
   const limpiarFiltros = () => { setBusca(''); setFEstatus('todos'); setFCamp('todos'); setFTier('todos'); setFSerie('todos'); setFIngles('todos'); setFSat('todos') }
   const toggleColapso = (id: string) => setColapsados((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  const URG_BG: Record<Urgencia, string | undefined> = { vencido: '#FBF3E6', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
+  const URG_BG: Record<Urgencia, string | undefined> = { vencido: 'var(--gold-wash)', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
   const URG_BADGE: Partial<Record<Urgencia, { t: string; c: string }>> = { vencido: { t: 'Vencido', c: '#B5841C' }, proximo: { t: 'Esta sem.', c: '#2563B0' } }
   const dateStyle = { fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' as const }
 
@@ -126,7 +126,7 @@ export default function Planeacion() {
   const selEstatus = (colId: string, idx: number, s: Servicio) => (
     <select value={s.estatus} aria-label="Estatus del servicio"
       onChange={(e) => { const est = e.target.value as Estatus; setServ(colId, idx, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
-      style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '2px 3px', minWidth: 96, width: '100%' }}>
+      style={{ fontSize: 11, padding: '2px 3px', minWidth: 96, width: '100%' }}>
       {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
     </select>
   )
@@ -168,7 +168,7 @@ export default function Planeacion() {
     )
     if (s.nota) return (
       <tr><td /><td colSpan={cols - 1} onClick={() => setNotaAbierta(key)} title="Clic para editar"
-        style={{ padding: '0 4px 3px', fontSize: 10, color: '#8A8F99', fontStyle: 'italic', cursor: 'pointer' }}>“{s.nota}”</td></tr>
+        style={{ padding: '0 4px 3px', fontSize: 10, color: 'var(--mut)', fontStyle: 'italic', cursor: 'pointer' }}>“{s.nota}”</td></tr>
     )
     return null
   }
@@ -179,7 +179,7 @@ export default function Planeacion() {
     const done = servicios.filter((s) => s.tipo === t && s.estatus === 'realizado').length
     const full = done === tot
     return <span key={t} style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
-      background: full ? '#E3F1EC' : '#EEF1F4', color: full ? '#1F6B5C' : '#646A75' }}>{SERV_SHORT[t]} {done}/{tot}</span>
+      background: full ? '#E3F1EC' : 'var(--track)', color: full ? '#1F6B5C' : 'var(--mut)' }}>{SERV_SHORT[t]} {done}/{tot}</span>
   })
 
   // resumen / reconciliación (capacidad tomada de las semillas del Simulador, como los cupos)
@@ -229,12 +229,12 @@ export default function Planeacion() {
           <div className="panel">
             {alertasPend.map((a) => (
               <div key={a.id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0', borderBottom: '1px solid #F0F2F5', fontSize: 12 }}>
-                <span style={{ color: '#646A75', width: 52, flex: '0 0 auto' }}>{a.fecha.slice(5, 10).split('-').reverse().join('/')}</span>
+                <span style={{ color: 'var(--mut)', width: 52, flex: '0 0 auto' }}>{a.fecha.slice(5, 10).split('-').reverse().join('/')}</span>
                 <b style={{ flex: '0 0 auto' }}>{nombreAsesor(a.asesorId)}</b>
                 <span style={{ flex: '0 0 auto' }}>{nombreColegio(a.colegioId)}</span>
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 8, padding: '1px 8px', flex: '0 0 auto' }}>
                   {PROBLEMAS.find((p) => p.key === a.tipo)?.label ?? a.tipo}</span>
-                <span style={{ flex: '1 1 200px', minWidth: 0, color: '#4A4F58' }}>{a.descripcion}</span>
+                <span style={{ flex: '1 1 200px', minWidth: 0, color: 'var(--ink-2)' }}>{a.descripcion}</span>
                 <button className="sec" onClick={() => atender(a.id)}>✓ Atendida</button>
               </div>
             ))}
@@ -265,14 +265,14 @@ export default function Planeacion() {
                   <td>{a.nombre}</td><td>{c.colegios}</td><td>{c.servicios}</td><td>{c.realizados}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 6, background: '#EEF1F4', overflow: 'hidden', minWidth: 60 }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 6, background: 'var(--track)', overflow: 'hidden', minWidth: 60 }}>
                         <div style={{ height: '100%', width: `${pct}%`, background: '#2C8A7B' }} />
                       </div>
-                      <span style={{ fontSize: 11, color: '#646A75' }}>{pct}%</span>
+                      <span style={{ fontSize: 11, color: 'var(--mut)' }}>{pct}%</span>
                     </div>
                   </td>
                   <td>{c.usoProf}</td>
-                  <td style={{ color: over ? '#B5841C' : '#646A75', fontWeight: over ? 600 : 400 }}>
+                  <td style={{ color: over ? '#B5841C' : 'var(--mut)', fontWeight: over ? 600 : 400 }}>
                     {over ? `⚠ ${Math.round(perAseCap)} máx` : 'ok'}
                   </td>
                 </tr>
@@ -299,10 +299,10 @@ export default function Planeacion() {
                   border: on ? `2px solid ${SMART}` : '1px solid #E3E6EB', background: on ? '#F3F7FC' : '#fff' }}>
                 <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
                   <span style={{ fontWeight: on ? 600 : 400 }}>{a.nombre}{sobre && <span title={`Sobrecarga: ${c.usoProf} uso/prof > ${Math.round(perAseCap)} de capacidad anual`} style={{ marginLeft: 4 }}>⚠</span>}</span>
-                  <span style={{ color: '#646A75', fontSize: 12, whiteSpace: 'nowrap' }}>{c.colegios} col · {c.servicios} serv</span>
+                  <span style={{ color: 'var(--mut)', fontSize: 12, whiteSpace: 'nowrap' }}>{c.colegios} col · {c.servicios} serv</span>
                 </span>
                 {c.servicios > 0 && (
-                  <span style={{ display: 'block', height: 3, borderRadius: 3, background: '#EEF1F4', marginTop: 5, overflow: 'hidden' }}>
+                  <span style={{ display: 'block', height: 3, borderRadius: 3, background: 'var(--track)', marginTop: 5, overflow: 'hidden' }}>
                     <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: EST_COLOR.realizado }} />
                   </span>
                 )}
@@ -358,7 +358,7 @@ export default function Planeacion() {
                 <div className="kpi"><div className="v">{ag.porHacer}</div><div className="l">Por hacer</div></div>
                 <div className="kpi good"><div className="v">{pctT}%</div><div className="l">Avance ({cargaT.realizados}/{cargaT.servicios})</div></div>
               </div>
-              <div style={{ height: 8, borderRadius: 8, background: '#EEF1F4', overflow: 'hidden', margin: '0 0 12px' }}>
+              <div style={{ height: 8, borderRadius: 8, background: 'var(--track)', overflow: 'hidden', margin: '0 0 12px' }}>
                 <div style={{ height: '100%', width: `${pctT}%`, background: EST_COLOR.realizado }} />
               </div>
 
@@ -426,23 +426,23 @@ export default function Planeacion() {
                       <div key={c.id} className="panel" style={{ margin: 0 }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                           <button onClick={() => toggleColapso(c.id)} title={abierto ? 'Colapsar' : 'Expandir'}
-                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: '#646A75', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
+                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--mut)', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
                           <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
                           <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)} title="Clic para renombrar"
                             style={{ flex: 1, minWidth: 0, border: 'none', borderBottom: '1px dashed #D2D7DE', fontWeight: 600, fontSize: 13, background: 'transparent', padding: '0 0 1px' }} />
                           {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
-                          <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--mut)', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
                         </div>
-                        <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 4 }}>
+                        <div style={{ height: 5, borderRadius: 5, background: 'var(--track)', overflow: 'hidden', marginBottom: 4 }}>
                           <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
                         </div>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
                           {tipoChips(c.servicios)}
-                          <span style={{ fontSize: 10, color: '#646A75' }}>· {done}/{total} realizados</span>
-                          {c.notasGenerales && !abierto && <span title={c.notasGenerales} style={{ fontSize: 10, color: '#8A8F99', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>“{c.notasGenerales}”</span>}
+                          <span style={{ fontSize: 10, color: 'var(--mut)' }}>· {done}/{total} realizados</span>
+                          {c.notasGenerales && !abierto && <span title={c.notasGenerales} style={{ fontSize: 10, color: 'var(--mut)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>“{c.notasGenerales}”</span>}
                         </div>
                         {abierto && (<>
-                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 8px', fontSize: 11, color: '#646A75' }}>
+                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 8px', fontSize: 11, color: 'var(--mut)' }}>
                             <label>Serie{' '}
                               <select value={c.serie ?? ''} onChange={(e) => patchCol(c.id, { serie: e.target.value || undefined })} style={{ fontSize: 11, width: 'auto' }}>
                                 <option value="">—</option>{SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -507,7 +507,7 @@ export default function Planeacion() {
                           const u = urgencia(r.servicio, hoy)
                           const mesKey = r.servicio.fechaPlan ? r.servicio.fechaPlan.slice(0, 7) : 'sin'
                           const header = mesKey !== mesPrevio
-                            ? <tr key={'mes-' + mesKey}><td colSpan={8} style={{ background: '#F0F2F5', fontWeight: 700, fontSize: 10.5, color: '#4A4F58', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{mesLabel(mesKey)}</td></tr>
+                            ? <tr key={'mes-' + mesKey}><td colSpan={8} style={{ background: 'var(--line)', fontWeight: 700, fontSize: 10.5, color: 'var(--ink-2)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{mesLabel(mesKey)}</td></tr>
                             : null
                           mesPrevio = mesKey
                           return (
