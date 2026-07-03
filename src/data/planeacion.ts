@@ -119,6 +119,17 @@ export function contarPorTipo(colegios: Colegio[], campaign: Campaign, tier: Tie
   }, 0);
 }
 
+/** Actualiza un servicio (por índice) de un colegio; devuelve un arreglo nuevo (inmutable). */
+export function setServicio(colegios: Colegio[], colegioId: string, idx: number, patch: Partial<Servicio>): Colegio[] {
+  return colegios.map((c) => c.id !== colegioId ? c
+    : { ...c, servicios: c.servicios.map((s, i) => i === idx ? { ...s, ...patch } : s) });
+}
+
+/** Renombra un colegio (útil antes de la carga CSV con nombres reales). */
+export function renombrarColegio(colegios: Colegio[], id: string, nombre: string): Colegio[] {
+  return colegios.map((c) => c.id === id ? { ...c, nombre } : c);
+}
+
 export interface Carga { colegios: number; servicios: number; realizados: number; }
 export function cargaAsesor(colegios: Colegio[], asesorId: string): Carga {
   let cols = 0, servicios = 0, realizados = 0;

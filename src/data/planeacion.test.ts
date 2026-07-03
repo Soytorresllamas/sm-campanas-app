@@ -3,6 +3,7 @@ import { DEFAULTS } from './model';
 import {
   serviciosDeTier, nColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
+  setServicio, renombrarColegio,
 } from './planeacion';
 
 const tierTop = { key: 'top' as const, label: 'Top', pct: 10, uso: 3, prof: 2, didac: 1 };
@@ -132,5 +133,28 @@ describe('asignar / resumen / cargaAsesor', () => {
     expect(carga.realizados).toBe(1);
     // otro asesor no tiene nada
     expect(cargaAsesor(cols, 'ase-2').colegios).toBe(0);
+  });
+});
+
+describe('setServicio / renombrarColegio', () => {
+  const base = () => generateColegios(10, DEFAULTS.tiersSmart, 0, DEFAULTS.tiersCore);
+
+  it('setServicio cambia solo el servicio indicado, sin mutar el original', () => {
+    const cols = base();
+    const id = cols.find((c) => c.tier === 'top')!.id;
+    const next = setServicio(cols, id, 0, { estatus: 'realizado', fechaReal: '2026-10-05' });
+    const c = next.find((x) => x.id === id)!;
+    expect(c.servicios[0].estatus).toBe('realizado');
+    expect(c.servicios[0].fechaReal).toBe('2026-10-05');
+    expect(c.servicios[1].estatus).toBe('pendiente');           // otros servicios intactos
+    expect(cols.find((x) => x.id === id)!.servicios[0].estatus).toBe('pendiente'); // original sin mutar
+  });
+
+  it('renombrarColegio cambia el nombre del colegio indicado', () => {
+    const cols = base();
+    const id = cols[0].id;
+    const next = renombrarColegio(cols, id, 'Colegio Real X');
+    expect(next.find((c) => c.id === id)!.nombre).toBe('Colegio Real X');
+    expect(cols[0].nombre).toBe(id);   // original sin mutar
   });
 });
