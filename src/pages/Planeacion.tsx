@@ -4,7 +4,7 @@ import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
   contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, patchColegio, avanceAsignado, ESTATUS,
-  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION,
+  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION, PROBLEMAS, atenderAlerta,
 } from '../data/planeacion'
 import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
@@ -189,6 +189,11 @@ export default function Planeacion() {
   const perAseCap = DEFAULTS.tDay * DEFAULTS.dWeek * DEFAULTS.wMonth * 12
   const capOk = av.usoProf <= capAnual
   const sinAsignarServ = data.colegios.reduce((s, c) => s + (c.asesorId ? 0 : c.servicios.length), 0)
+  // alertas de caso crítico levantadas por los asesores desde su portal
+  const alertasPend = (data.alertas ?? []).filter((a) => !a.atendida).sort((a, b) => b.fecha.localeCompare(a.fecha))
+  const atender = (id: string) => setData((d) => atenderAlerta(d, id))
+  const nombreAsesor = (id: string) => data.asesores.find((a) => a.id === id)?.nombre ?? id
+  const nombreColegio = (id: string) => data.colegios.find((c) => c.id === id)?.nombre ?? id
 
   return (
     <div>
@@ -218,6 +223,24 @@ export default function Planeacion() {
           <div className="kpi good"><div className="v">{pctG}%</div><div className="l">Avance ({av.realizados}/{av.servicios} servicios)</div></div>
           <div className="kpi warn"><div className="v">{av.servicios - av.realizados}</div><div className="l">Servicios pendientes</div></div>
         </div>
+
+        {alertasPend.length > 0 && (<>
+          <h2>🚨 Alertas de asesores ({alertasPend.length})</h2>
+          <div className="panel">
+            {alertasPend.map((a) => (
+              <div key={a.id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0', borderBottom: '1px solid #F0F2F5', fontSize: 12 }}>
+                <span style={{ color: '#646A75', width: 52, flex: '0 0 auto' }}>{a.fecha.slice(5, 10).split('-').reverse().join('/')}</span>
+                <b style={{ flex: '0 0 auto' }}>{nombreAsesor(a.asesorId)}</b>
+                <span style={{ flex: '0 0 auto' }}>{nombreColegio(a.colegioId)}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 8, padding: '1px 8px', flex: '0 0 auto' }}>
+                  {PROBLEMAS.find((p) => p.key === a.tipo)?.label ?? a.tipo}</span>
+                <span style={{ flex: '1 1 200px', minWidth: 0, color: '#4A4F58' }}>{a.descripcion}</span>
+                <button className="sec" onClick={() => atender(a.id)}>✓ Atendida</button>
+              </div>
+            ))}
+            <div className="hint" style={{ marginTop: 6 }}>Casos críticos reportados por los asesores desde su portal. Al marcarlas atendidas salen de esta lista.</div>
+          </div>
+        </>)}
 
         <h2>Reconciliación con la capacidad de empleados</h2>
         <div className={`kpi ${capOk ? 'good' : 'warn'}`} style={{ marginBottom: 10 }}>

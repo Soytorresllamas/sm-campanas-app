@@ -5,6 +5,7 @@ import {
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
   setServicio, renombrarColegio, avanceAsignado, patchColegio,
   hoyISO, sumarDias, urgencia, agendaAsesor, serviciosDeAsesor,
+  agregarAlerta, atenderAlerta,
 } from './planeacion';
 import type { Servicio } from './planeacion';
 
@@ -216,6 +217,32 @@ describe('avanceAsignado', () => {
     const top = cols.find((c) => c.asesorId === 'ase-1')!;
     cols = setServicio(cols, top.id, 0, { estatus: 'realizado' });
     expect(avanceAsignado(cols).realizados).toBe(1);
+  });
+});
+
+describe('alertas de caso crítico', () => {
+  const base = (): ReturnType<typeof defaultPlaneacion> => ({ asesores: defaultAsesores(2), colegios: [], alertas: undefined });
+
+  it('agregarAlerta anexa con id generado y preserva lo demás (tolera alertas undefined)', () => {
+    const d0 = base();
+    const d1 = agregarAlerta(d0, { fecha: '2026-07-03T10:00:00Z', asesorId: 'ase-1', colegioId: 'SMART-top-001', tipo: 'materiales', descripcion: 'Faltan libros de 3º' });
+    expect(d1.alertas).toHaveLength(1);
+    expect(d1.alertas![0].id).toBeTruthy();
+    expect(d1.alertas![0].tipo).toBe('materiales');
+    expect(d1.alertas![0].atendida).toBeUndefined();
+    expect(d0.alertas).toBeUndefined();          // no muta el original
+    const d2 = agregarAlerta(d1, { fecha: '2026-07-03T11:00:00Z', asesorId: 'ase-2', colegioId: 'X', tipo: 'otros', descripcion: 'Otro' });
+    expect(d2.alertas).toHaveLength(2);
+    expect(d2.alertas![0].id).not.toBe(d2.alertas![1].id);
+  });
+
+  it('atenderAlerta marca solo la indicada', () => {
+    let d = agregarAlerta(base(), { fecha: '2026-07-03T10:00:00Z', asesorId: 'ase-1', colegioId: 'A', tipo: 'atencion', descripcion: 'x' });
+    d = agregarAlerta(d, { fecha: '2026-07-03T11:00:00Z', asesorId: 'ase-1', colegioId: 'B', tipo: 'facturacion', descripcion: 'y' });
+    const id0 = d.alertas![0].id;
+    const d2 = atenderAlerta(d, id0);
+    expect(d2.alertas![0].atendida).toBe(true);
+    expect(d2.alertas![1].atendida).toBeUndefined();
   });
 });
 

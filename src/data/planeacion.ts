@@ -47,9 +47,39 @@ export interface Colegio {
 
 export interface Asesor { id: string; nombre: string; }
 
+// Alertas de caso crítico: el asesor las levanta desde su portal; el coordinador las ve en Planeación.
+export type ProblemaKey = 'materiales' | 'atencion' | 'facturacion' | 'otros';
+export const PROBLEMAS: { key: ProblemaKey; label: string }[] = [
+  { key: 'materiales', label: 'Materiales' },
+  { key: 'atencion', label: 'Atención' },
+  { key: 'facturacion', label: 'Facturación' },
+  { key: 'otros', label: 'Otros' },
+];
+export interface Alerta {
+  id: string;
+  fecha: string;        // ISO datetime (para ordenar)
+  asesorId: string;
+  colegioId: string;
+  tipo: ProblemaKey;
+  descripcion: string;
+  atendida?: boolean;   // el coordinador la marca al resolverla
+}
+
 export interface PlaneacionData {
   asesores: Asesor[];
   colegios: Colegio[];
+  alertas?: Alerta[];   // opcional: tableros guardados antes de las alertas no lo traen
+}
+
+/** Agrega una alerta (genera el id); devuelve un objeto nuevo. */
+export function agregarAlerta(data: PlaneacionData, a: Omit<Alerta, 'id'>): PlaneacionData {
+  const id = `al-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  return { ...data, alertas: [...(data.alertas ?? []), { ...a, id }] };
+}
+
+/** Marca una alerta como atendida; devuelve un objeto nuevo. */
+export function atenderAlerta(data: PlaneacionData, id: string): PlaneacionData {
+  return { ...data, alertas: (data.alertas ?? []).map((a) => a.id === id ? { ...a, atendida: true } : a) };
 }
 
 /** Servicios requeridos de un colegio, derivados de la matriz del tipo (Simulador). */

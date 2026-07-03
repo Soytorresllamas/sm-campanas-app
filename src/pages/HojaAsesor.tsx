@@ -1,20 +1,20 @@
 import { Fragment, useEffect, useState } from 'react'
 import { DEFAULTS, TIER_SEED } from '../data/model'
-import type { TierKey } from '../data/model'
+import type { TierKey, Campaign } from '../data/model'
 import {
-  defaultPlaneacion, setServicio, patchColegio, cargaAsesor,
-  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SATISFACCION, ESTATUS,
+  defaultPlaneacion, setServicio, patchColegio, cargaAsesor, agregarAlerta,
+  hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SATISFACCION, ESTATUS, PROBLEMAS,
 } from '../data/planeacion'
-import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio } from '../data/planeacion'
+import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio, ProblemaKey } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
 import logoSM from '../assets/logo-sm.svg'
 
-// ─── Portal del asesor (MOCKUP) ────────────────────────────────────────────────
+// ─── Portal del asesor (MOCKUP, móvil-first) ──────────────────────────────────
 // Simula el acceso individual: login propio + SOLO su hoja, sin el resto de la app.
 // La autenticación es de utilería (cualquier contraseña entra); la real (Supabase
 // Auth + RLS) sigue en el roadmap. Ver docs/05-planeacion-servicios.md.
 
-const SMART = '#2563B0', CORE = '#2C8A7B'
+const SMART = '#2563B0', CORE = '#2C8A7B', ROJO = '#D22730'
 const EST_COLOR: Record<Estatus, string> = { pendiente: '#9AA1AC', agendado: '#B5841C', realizado: '#2C8A7B' }
 const EST_LABEL: Record<Estatus, string> = { pendiente: 'Pendiente', agendado: 'Agendado', realizado: 'Realizado' }
 const SERV_SHORT: Record<string, string> = { uso: 'Uso', prof: 'Prof.', didac: 'Didác.' }
@@ -30,8 +30,20 @@ export default function HojaAsesor() {
   const [asesorId, setAsesorId] = useState<string | null>(() => sessionStorage.getItem(SESION))
   const [loginSel, setLoginSel] = useState('')
   const [loginPw, setLoginPw] = useState('')
-  const [colapsados, setColapsados] = useState<Set<string>>(new Set())
+  // null = colapso por defecto (solo la primera tarjeta abierta); al tocar se materializa el set
+  const [expandidos, setExpandidos] = useState<Set<string> | null>(null)
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
+  // filtros de la cartera
+  const [busca, setBusca] = useState('')
+  const [fCamp, setFCamp] = useState<'todos' | Campaign>('todos')
+  const [fTier, setFTier] = useState<'todos' | TierKey>('todos')
+  const [fEstado, setFEstado] = useState<'todos' | 'vencidos' | 'pendientes' | 'completos'>('todos')
+  // alerta de caso crítico (FAB)
+  const [alertaOpen, setAlertaOpen] = useState(false)
+  const [alCol, setAlCol] = useState('')
+  const [alTipo, setAlTipo] = useState<ProblemaKey>('materiales')
+  const [alDesc, setAlDesc] = useState('')
+  const [alSent, setAlSent] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -63,6 +75,7 @@ export default function HojaAsesor() {
     if (!id || !loginPw) return
     sessionStorage.setItem(SESION, id)
     setAsesorId(id)
+    setExpandidos(null)
   }
   const salir = () => { sessionStorage.removeItem(SESION); setAsesorId(null); setLoginPw('') }
 
@@ -97,13 +110,11 @@ export default function HojaAsesor() {
   const perAseCap = Math.round(DEFAULTS.tDay * DEFAULTS.dWeek * DEFAULTS.wMonth * 12)
   const pctCap = Math.min(100, Math.round((carga.usoProf / perAseCap) * 100))
 
-  // agenda próxima: no realizados con fecha, ordenados (los vencidos quedan arriba solos)
   const proximos = refs
     .filter((r) => r.servicio.estatus !== 'realizado' && r.servicio.fechaPlan)
     .sort((a, b) => a.servicio.fechaPlan!.localeCompare(b.servicio.fechaPlan!))
     .slice(0, 6)
 
-  // colegios que requieren atención: vencidos, sin agendar, o satisfacción baja
   const atencion = misColegios.map((c) => {
     const venc = c.servicios.filter((s) => urgencia(s, hoy) === 'vencido').length
     const sinFecha = c.servicios.filter((s) => s.estatus === 'pendiente' && !s.fechaPlan).length
@@ -113,20 +124,49 @@ export default function HojaAsesor() {
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
 
-  // distribución de satisfacción de la cartera
   const satDist = SATISFACCION.map((s) => ({ ...s, n: misColegios.filter((c) => c.satisfaccion === s.v).length }))
   const sinCalif = misColegios.filter((c) => !c.satisfaccion).length
   const nSmart = misColegios.filter((c) => c.campaign === 'SMART').length
   const nCore = misColegios.length - nSmart
 
+  // cartera filtrada (búsqueda + filtros)
+  const visibles = misColegios.filter((c) => {
+    if (busca && !c.nombre.toLowerCase().includes(busca.toLowerCase())) return false
+    if (fCamp !== 'todos' && c.campaign !== fCamp) return false
+    if (fTier !== 'todos' && c.tier !== fTier) return false
+    if (fEstado === 'vencidos' && !c.servicios.some((s) => urgencia(s, hoy) === 'vencido')) return false
+    if (fEstado === 'pendientes' && !c.servicios.some((s) => s.estatus !== 'realizado')) return false
+    if (fEstado === 'completos' && c.servicios.some((s) => s.estatus !== 'realizado')) return false
+    return true
+  })
+  const filtrosActivos = busca !== '' || fCamp !== 'todos' || fTier !== 'todos' || fEstado !== 'todos'
+  const limpiar = () => { setBusca(''); setFCamp('todos'); setFTier('todos'); setFEstado('todos') }
+
+  // colapso: por defecto solo la primera visible abierta (o la única, si el filtro deja una)
+  const abiertoCard = (id: string, idx: number) =>
+    expandidos ? expandidos.has(id) : (idx === 0 || visibles.length === 1)
+  const toggleCard = (id: string) => setExpandidos((p) => {
+    const base = p ?? new Set(visibles.length ? [visibles[0].id] : [])
+    const n = new Set(base)
+    if (n.has(id)) n.delete(id); else n.add(id)
+    return n
+  })
+
   const setServ = (colegioId: string, idx: number, patch: Partial<Servicio>) =>
     setData((d) => ({ ...d, colegios: setServicio(d.colegios, colegioId, idx, patch) }))
   const patchCol = (id: string, patch: Partial<Colegio>) =>
     setData((d) => ({ ...d, colegios: patchColegio(d.colegios, id, patch) }))
-  const toggleColapso = (id: string) => setColapsados((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  const abrirAlerta = (colegioId?: string) => {
+    setAlCol(colegioId ?? misColegios[0]?.id ?? ''); setAlTipo('materiales'); setAlDesc(''); setAlSent(false); setAlertaOpen(true)
+  }
+  const enviarAlerta = () => {
+    if (!alCol || !alDesc.trim()) return
+    setData((d) => agregarAlerta(d, { fecha: new Date().toISOString(), asesorId: asesor.id, colegioId: alCol, tipo: alTipo, descripcion: alDesc.trim() }))
+    setAlSent(true)
+  }
 
   const URG_BG: Record<Urgencia, string | undefined> = { vencido: '#FBF3E6', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
-  const dateStyle = { fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' as const }
 
   const servLabel = (s: Servicio, u: Urgencia) => (<>
     {SERV_SHORT[s.tipo]}
@@ -135,30 +175,6 @@ export default function HojaAsesor() {
     {u === 'vencido' && <span style={{ color: '#B5841C', fontSize: 9, marginLeft: 3 }}>· Vencido</span>}
     {u === 'proximo' && <span style={{ color: SMART, fontSize: 9, marginLeft: 3 }}>· Próximo</span>}
   </>)
-  const chkHecho = (colId: string, idx: number, s: Servicio) => (
-    <input type="checkbox" checked={s.estatus === 'realizado'} aria-label="Marcar realizado"
-      title="Marcar realizado (pone la fecha de hoy)"
-      onChange={(e) => e.target.checked
-        ? setServ(colId, idx, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
-        : setServ(colId, idx, { estatus: s.fechaPlan ? 'agendado' : 'pendiente', fechaReal: undefined })} />
-  )
-  const notaRow = (colId: string, idx: number, s: Servicio, cols: number) => {
-    const key = colId + ':' + idx
-    if (notaAbierta === key) return (
-      <tr><td colSpan={cols} style={{ padding: '2px 4px' }}>
-        <input value={s.nota ?? ''} autoFocus placeholder="Nota…"
-          onChange={(e) => setServ(colId, idx, { nota: e.target.value || undefined })}
-          onBlur={() => setNotaAbierta(null)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setNotaAbierta(null) }}
-          style={{ width: '100%', fontSize: 11, padding: '3px 4px', boxSizing: 'border-box' }} />
-      </td></tr>
-    )
-    if (s.nota) return (
-      <tr><td /><td colSpan={cols - 1} onClick={() => setNotaAbierta(key)} title="Clic para editar"
-        style={{ padding: '0 4px 3px', fontSize: 10, color: '#8A8F99', fontStyle: 'italic', cursor: 'pointer' }}>“{s.nota}”</td></tr>
-    )
-    return null
-  }
   const tipoChips = (servicios: Servicio[]) => (['uso', 'prof', 'didac'] as const).map((t) => {
     const tot = servicios.filter((s) => s.tipo === t).length
     if (!tot) return null
@@ -167,12 +183,28 @@ export default function HojaAsesor() {
     return <span key={t} style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
       background: full ? '#E3F1EC' : '#EEF1F4', color: full ? '#1F6B5C' : '#646A75' }}>{SERV_SHORT[t]} {done}/{tot}</span>
   })
+  // nota (móvil): línea propia debajo del servicio
+  const notaLinea = (colId: string, idx: number, s: Servicio) => {
+    const key = colId + ':' + idx
+    if (notaAbierta === key) return (
+      <input value={s.nota ?? ''} autoFocus placeholder="Nota…"
+        onChange={(e) => setServ(colId, idx, { nota: e.target.value || undefined })}
+        onBlur={() => setNotaAbierta(null)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setNotaAbierta(null) }}
+        style={{ width: '100%', fontSize: 12, padding: '5px 6px', marginTop: 4, boxSizing: 'border-box' }} />
+    )
+    if (s.nota) return (
+      <div onClick={() => setNotaAbierta(key)} title="Toca para editar"
+        style={{ fontSize: 11, color: '#8A8F99', fontStyle: 'italic', cursor: 'pointer', marginTop: 3, paddingLeft: 28 }}>“{s.nota}”</div>
+    )
+    return null
+  }
 
   // ── Dashboard del asesor ─────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: '#F0F2F5' }}>
       <header className="app-header">
-        <div className="inner" style={{ maxWidth: 820 }}>
+        <div className="inner" style={{ maxWidth: 820, flexWrap: 'wrap', rowGap: 6 }}>
           <div className="brand">
             <img src={logoSM} alt="SM México" className="brand-logo" />
             <span className="brand-txt">Portal del asesor<small>Servicios académicos 2026-2027</small></span>
@@ -184,7 +216,7 @@ export default function HojaAsesor() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 820, margin: '0 auto', padding: '18px 16px 40px' }}>
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: '16px 14px 110px' }}>
         <h1 style={{ marginBottom: 2 }}>Hola, {asesor.nombre}</h1>
         <div className="sub">Tu hoja de servicios académicos · {misColegios.length} colegios asignados.</div>
 
@@ -192,7 +224,7 @@ export default function HojaAsesor() {
           <div className="panel"><div className="hint">Aún no tienes colegios asignados. Tu coordinador te los asignará pronto.</div></div>
         ) : (<>
           {/* KPIs */}
-          <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))' }}>
+          <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(118px,1fr))' }}>
             <div className={`kpi ${ag.vencidos > 0 ? 'warn' : ''}`}><div className="v">{ag.vencidos}</div><div className="l">Vencidos</div></div>
             <div className="kpi"><div className="v">{ag.estaSemana}</div><div className="l">Próx. 7 días</div></div>
             <div className="kpi"><div className="v">{ag.porHacer}</div><div className="l">Por hacer</div></div>
@@ -207,26 +239,20 @@ export default function HojaAsesor() {
             <h3>📅 Tu agenda próxima</h3>
             {proximos.length === 0
               ? <div className="hint" style={{ margin: 0 }}>No tienes servicios agendados con fecha. Ponles fecha planeada a tus pendientes para organizarte.</div>
-              : (
-                <table style={{ fontSize: 12 }}>
-                  <tbody>
-                    {proximos.map((r) => {
-                      const u = urgencia(r.servicio, hoy)
-                      return (
-                        <tr key={r.colegioId + ':' + r.idx} style={{ background: URG_BG[u] }}>
-                          <td style={{ padding: '4px 6px', whiteSpace: 'nowrap', fontWeight: 700, color: u === 'vencido' ? '#B5841C' : '#2C2F36', width: 58 }}>{fmtF(r.servicio.fechaPlan!)}</td>
-                          <td style={{ padding: '4px 6px' }}>{r.colegioNombre}</td>
-                          <td style={{ padding: '4px 6px' }}>{servLabel(r.servicio, u)}</td>
-                          <td style={{ padding: '4px 6px', width: 90, textAlign: 'right' }}>
-                            <button className="sec" title="Marcar realizado hoy"
-                              onClick={() => setServ(r.colegioId, r.idx, { estatus: 'realizado', fechaReal: hoy })}>✓ Hecho</button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
+              : proximos.map((r) => {
+                const u = urgencia(r.servicio, hoy)
+                return (
+                  <div key={r.colegioId + ':' + r.idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderBottom: '1px solid #F0F2F5', background: URG_BG[u], borderRadius: 6 }}>
+                    <div style={{ width: 46, flex: '0 0 auto', fontWeight: 700, fontSize: 12, color: u === 'vencido' ? '#B5841C' : '#2C2F36' }}>{fmtF(r.servicio.fechaPlan!)}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.colegioNombre}</div>
+                      <div style={{ fontSize: 11, color: '#646A75' }}>{servLabel(r.servicio, u)}</div>
+                    </div>
+                    <button className="sec" style={{ flex: '0 0 auto', minHeight: 34 }} title="Marcar realizado hoy"
+                      onClick={() => setServ(r.colegioId, r.idx, { estatus: 'realizado', fechaReal: hoy })}>✓ Hecho</button>
+                  </div>
+                )
+              })}
           </div>
 
           {/* Requieren atención */}
@@ -234,9 +260,9 @@ export default function HojaAsesor() {
             <div className="panel">
               <h3>⚠️ Requieren tu atención</h3>
               {atencion.map(({ c, venc, sinFecha, satBaja }) => (
-                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '4px 0', borderBottom: '1px solid #F0F2F5', fontSize: 12 }}>
+                <div key={c.id} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '5px 0', borderBottom: '1px solid #F0F2F5', fontSize: 12 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: c.campaign === 'SMART' ? SMART : CORE, flex: '0 0 auto' }} />
-                  <b style={{ marginRight: 4 }}>{c.nombre}</b>
+                  <b style={{ marginRight: 2 }}>{c.nombre}</b>
                   {venc > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 8, padding: '1px 7px' }}>{venc} vencido{venc > 1 ? 's' : ''}</span>}
                   {sinFecha > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: '#4A4F58', background: '#E9ECF0', borderRadius: 8, padding: '1px 7px' }}>{sinFecha} sin agendar</span>}
                   {satBaja && <span style={{ fontSize: 10, fontWeight: 600, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 8, padding: '1px 7px' }}>satisfacción baja {SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span>}
@@ -249,12 +275,12 @@ export default function HojaAsesor() {
           {/* Mi cartera */}
           <div className="panel">
             <h3>📊 Tu cartera</h3>
-            <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start', fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', fontSize: 12 }}>
               <div>
                 <div style={{ color: '#646A75', fontSize: 11, marginBottom: 4 }}>Colegios</div>
                 <span style={{ color: SMART, fontWeight: 700 }}>{nSmart} SMART</span> · <span style={{ color: CORE, fontWeight: 700 }}>{nCore} CORE</span>
               </div>
-              <div style={{ minWidth: 210, flex: 1 }}>
+              <div style={{ minWidth: 200, flex: 1 }}>
                 <div style={{ color: '#646A75', fontSize: 11, marginBottom: 4 }}>Tu carga uso/prof vs tu capacidad anual (~{perAseCap})</div>
                 <div style={{ height: 8, borderRadius: 8, background: '#EEF1F4', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pctCap}%`, background: carga.usoProf > perAseCap ? '#B5841C' : SMART }} />
@@ -264,7 +290,7 @@ export default function HojaAsesor() {
               </div>
               <div>
                 <div style={{ color: '#646A75', fontSize: 11, marginBottom: 4 }}>Satisfacción de tu cartera</div>
-                <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
                   {satDist.map((s) => (
                     <span key={s.v} title={s.label} style={{ fontSize: 13, opacity: s.n ? 1 : 0.35 }}>{s.emoji}<b style={{ fontSize: 11, marginLeft: 2 }}>{s.n}</b></span>
                   ))}
@@ -274,83 +300,166 @@ export default function HojaAsesor() {
             </div>
           </div>
 
-          {/* Mis colegios */}
+          {/* Mis colegios: búsqueda + filtros */}
           <h2 style={{ marginTop: 18 }}>Mis colegios</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
-            {misColegios.map((c) => {
-              const done = c.servicios.filter((s) => s.estatus === 'realizado').length
-              const total = c.servicios.length
-              const abierto = !colapsados.has(c.id)
-              return (
-                <div key={c.id} className="panel" style={{ margin: 0 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                    <button onClick={() => toggleColapso(c.id)} title={abierto ? 'Colapsar' : 'Expandir'}
-                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: '#646A75', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
-                    <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
-                    <b style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</b>
-                    {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
-                    <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
-                  </div>
-                  <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 4 }}>
-                    <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-                    {tipoChips(c.servicios)}
-                    <span style={{ fontSize: 10, color: '#646A75' }}>· {done}/{total} realizados</span>
-                    {(c.serie || c.ingles) && <span style={{ fontSize: 10, color: '#8A8F99' }}>· {[c.serie, c.ingles].filter(Boolean).join(' · ')}</span>}
-                  </div>
-                  {abierto && (<>
-                    <table style={{ fontSize: 11 }}>
-                      <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
-                      <tbody>
-                        {c.servicios.map((s, i) => {
-                          const u = urgencia(s, hoy)
-                          const key = c.id + ':' + i
-                          return (
-                            <Fragment key={i}>
-                              <tr style={{ background: URG_BG[u] }}>
-                                <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(c.id, i, s)}</td>
-                                <td style={{ padding: '2px 4px' }}>{servLabel(s, u)}</td>
-                                <td style={{ padding: '2px 4px' }}>
-                                  <select value={s.estatus} aria-label="Estatus del servicio"
-                                    onChange={(e) => { const est = e.target.value as Estatus; setServ(c.id, i, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
-                                    style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '2px 3px', minWidth: 96, width: '100%' }}>
-                                    {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
-                                  </select>
-                                </td>
-                                <td style={{ padding: '2px 4px' }}><input type="date" aria-label="Fecha planeada" value={s.fechaPlan ?? ''} onChange={(e) => setServ(c.id, i, { fechaPlan: e.target.value || undefined })} style={dateStyle} /></td>
-                                <td style={{ padding: '2px 4px' }}>{s.estatus === 'realizado'
-                                  ? <input type="date" aria-label="Fecha real" value={s.fechaReal ?? ''} onChange={(e) => setServ(c.id, i, { fechaReal: e.target.value || undefined })} style={dateStyle} />
-                                  : <span style={{ color: '#B7BCC4' }}>—</span>}</td>
-                                <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                                  <button title={s.nota ? 'Editar nota' : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
-                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, opacity: s.nota ? 1 : 0.4 }}>✎</button>
-                                </td>
-                              </tr>
-                              {notaRow(c.id, i, s, 6)}
-                            </Fragment>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, fontSize: 11, color: '#646A75' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>Satisfacción:
-                        {SATISFACCION.map((s) => (
-                          <button key={s.v} title={s.label} onClick={() => patchCol(c.id, { satisfaccion: c.satisfaccion === s.v ? undefined : s.v })}
-                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 1px', opacity: c.satisfaccion === s.v ? 1 : 0.3, filter: c.satisfaccion === s.v ? 'none' : 'grayscale(1)' }}>{s.emoji}</button>
-                        ))}
-                      </span>
-                    </div>
-                    <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…"
-                      onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
-                      style={{ width: '100%', fontSize: 12, padding: '4px 6px', marginTop: 6, boxSizing: 'border-box', minHeight: 40, resize: 'vertical' }} />
-                  </>)}
-                </div>
-              )
-            })}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 10px' }}>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="🔍 Buscar colegio…"
+              aria-label="Buscar colegio" style={{ flex: '1 1 150px', minWidth: 140, fontSize: 14, padding: '7px 10px' }} />
+            <select value={fEstado} onChange={(e) => setFEstado(e.target.value as typeof fEstado)} style={{ width: 'auto', fontSize: 12, padding: '7px 6px' }}>
+              <option value="todos">Todos</option>
+              <option value="vencidos">Con vencidos</option>
+              <option value="pendientes">Con pendientes</option>
+              <option value="completos">Completados</option>
+            </select>
+            <select value={fCamp} onChange={(e) => setFCamp(e.target.value as typeof fCamp)} style={{ width: 'auto', fontSize: 12, padding: '7px 6px' }}>
+              <option value="todos">Ambas</option>
+              <option value="SMART">SMART</option>
+              <option value="CORE">CORE</option>
+            </select>
+            <select value={fTier} onChange={(e) => setFTier(e.target.value as typeof fTier)} style={{ width: 'auto', fontSize: 12, padding: '7px 6px' }}>
+              <option value="todos">Todo tipo</option>
+              {TIER_SEED.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+            {filtrosActivos && <button className="sec" onClick={limpiar}>× Limpiar</button>}
           </div>
+          {filtrosActivos && <div className="hint" style={{ margin: '0 0 8px' }}>Mostrando {visibles.length} de {misColegios.length} colegios.</div>}
+
+          {visibles.length === 0 ? (
+            <div className="hint">Ningún colegio coincide. <button className="sec" onClick={limpiar}>Limpiar filtros</button></div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
+              {visibles.map((c, idxV) => {
+                const done = c.servicios.filter((s) => s.estatus === 'realizado').length
+                const total = c.servicios.length
+                const abierto = abiertoCard(c.id, idxV)
+                return (
+                  <div key={c.id} className="panel" style={{ margin: 0 }}>
+                    <div onClick={() => toggleCard(c.id)} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, cursor: 'pointer' }}>
+                      <span style={{ fontSize: 11, color: '#646A75', width: 12 }}>{abierto ? '▾' : '▸'}</span>
+                      <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
+                      <b style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</b>
+                      {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
+                      <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 4 }}>
+                      <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                      {tipoChips(c.servicios)}
+                      <span style={{ fontSize: 10, color: '#646A75' }}>· {done}/{total} realizados</span>
+                      {(c.serie || c.ingles) && <span style={{ fontSize: 10, color: '#8A8F99' }}>· {[c.serie, c.ingles].filter(Boolean).join(' · ')}</span>}
+                    </div>
+                    {abierto && (<>
+                      {c.servicios.map((s, i) => {
+                        const u = urgencia(s, hoy)
+                        const key = c.id + ':' + i
+                        return (
+                          <Fragment key={i}>
+                            <div style={{ background: URG_BG[u], borderBottom: '1px solid #F0F2F5', padding: '7px 4px', borderRadius: 6 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input type="checkbox" checked={s.estatus === 'realizado'} aria-label="Marcar realizado"
+                                  style={{ transform: 'scale(1.2)', flex: '0 0 auto' }}
+                                  onChange={(e) => e.target.checked
+                                    ? setServ(c.id, i, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
+                                    : setServ(c.id, i, { estatus: s.fechaPlan ? 'agendado' : 'pendiente', fechaReal: undefined })} />
+                                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600 }}>{servLabel(s, u)}</span>
+                                <select value={s.estatus} aria-label="Estatus del servicio"
+                                  onChange={(e) => { const est = e.target.value as Estatus; setServ(c.id, i, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
+                                  style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 12, padding: '5px 4px', width: 'auto', minWidth: 104, flex: '0 0 auto' }}>
+                                  {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
+                                </select>
+                                <button title={s.nota ? 'Editar nota' : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
+                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, opacity: s.nota ? 1 : 0.4, flex: '0 0 auto', padding: '2px 4px' }}>✎</button>
+                              </div>
+                              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 5, paddingLeft: 28, fontSize: 11, color: '#646A75', flexWrap: 'wrap' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Plan.
+                                  <input type="date" aria-label="Fecha planeada" value={s.fechaPlan ?? ''}
+                                    onChange={(e) => setServ(c.id, i, { fechaPlan: e.target.value || undefined })}
+                                    style={{ fontSize: 12, padding: '4px 3px', width: 122 }} /></label>
+                                {s.estatus === 'realizado'
+                                  ? <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Real
+                                      <input type="date" aria-label="Fecha real" value={s.fechaReal ?? ''}
+                                        onChange={(e) => setServ(c.id, i, { fechaReal: e.target.value || undefined })}
+                                        style={{ fontSize: 12, padding: '4px 3px', width: 122 }} /></label>
+                                  : <span>Real —</span>}
+                              </div>
+                              {notaLinea(c.id, i, s)}
+                            </div>
+                          </Fragment>
+                        )
+                      })}
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, fontSize: 11, color: '#646A75', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>Satisfacción:
+                          {SATISFACCION.map((s) => (
+                            <button key={s.v} title={s.label} onClick={() => patchCol(c.id, { satisfaccion: c.satisfaccion === s.v ? undefined : s.v })}
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 19, lineHeight: 1, padding: '0 2px', opacity: c.satisfaccion === s.v ? 1 : 0.3, filter: c.satisfaccion === s.v ? 'none' : 'grayscale(1)' }}>{s.emoji}</button>
+                          ))}
+                        </span>
+                        <button className="sec" style={{ marginLeft: 'auto' }} onClick={() => abrirAlerta(c.id)}>🚨 Reportar caso</button>
+                      </div>
+                      <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…"
+                        onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
+                        style={{ width: '100%', fontSize: 13, padding: '6px 8px', marginTop: 6, boxSizing: 'border-box', minHeight: 44, resize: 'vertical' }} />
+                    </>)}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </>)}
       </div>
+
+      {/* FAB: caso crítico */}
+      {misColegios.length > 0 && (
+        <button onClick={() => abrirAlerta()} aria-label="Reportar caso crítico"
+          style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 60, background: ROJO, color: '#fff', border: 'none',
+            borderRadius: 999, padding: '13px 18px', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit',
+            boxShadow: '0 4px 16px rgba(0,0,0,.28)', cursor: 'pointer' }}>🚨 Caso crítico</button>
+      )}
+
+      {/* Modal de alerta (bottom sheet) */}
+      {alertaOpen && (
+        <div onClick={() => setAlertaOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,26,.45)', zIndex: 70, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: '16px 16px 24px', width: '100%', maxWidth: 560, boxSizing: 'border-box', boxShadow: '0 -6px 24px rgba(0,0,0,.18)' }}>
+            {alSent ? (
+              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ fontSize: 34 }}>✅</div>
+                <h3 style={{ margin: '6px 0 4px' }}>Alerta enviada</h3>
+                <p style={{ fontSize: 13, color: '#646A75', margin: '0 0 14px' }}>Tu coordinador la verá en su tablero de planeación y te contactará.</p>
+                <button className="gate-btn" style={{ maxWidth: 200, margin: '0 auto' }} onClick={() => setAlertaOpen(false)}>Cerrar</button>
+              </div>
+            ) : (<>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <h3 style={{ margin: 0 }}>🚨 Reportar caso crítico</h3>
+                <button onClick={() => setAlertaOpen(false)} aria-label="Cerrar"
+                  style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', color: '#646A75', padding: 4 }}>×</button>
+              </div>
+              <label style={{ display: 'block', fontSize: 12, color: '#646A75', marginBottom: 8 }}>Colegio
+                <select value={alCol} onChange={(e) => setAlCol(e.target.value)} style={{ marginTop: 3, fontSize: 15, padding: '8px 8px' }}>
+                  {misColegios.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'block', fontSize: 12, color: '#646A75', marginBottom: 8 }}>Tipo de problema
+                <select value={alTipo} onChange={(e) => setAlTipo(e.target.value as ProblemaKey)} style={{ marginTop: 3, fontSize: 15, padding: '8px 8px' }}>
+                  {PROBLEMAS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'block', fontSize: 12, color: '#646A75', marginBottom: 12 }}>Describe el caso
+                <textarea value={alDesc} autoFocus onChange={(e) => setAlDesc(e.target.value)} placeholder="¿Qué está pasando y qué necesitas?"
+                  style={{ width: '100%', marginTop: 3, fontSize: 15, padding: '8px 10px', minHeight: 84, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="sec" style={{ flex: 1, minHeight: 42 }} onClick={() => setAlertaOpen(false)}>Cancelar</button>
+                <button disabled={!alCol || !alDesc.trim()} onClick={enviarAlerta}
+                  style={{ flex: 2, minHeight: 42, background: ROJO, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', opacity: (!alCol || !alDesc.trim()) ? 0.5 : 1 }}>
+                  Enviar alerta</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
