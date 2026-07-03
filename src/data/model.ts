@@ -57,6 +57,26 @@ export const SERVICE_PROFILES: ServiceProfile[] = [
   { k: "Cu", camp: "CORE",  name: "Uso",                 vol: 1047, fill: "#63AE9D", curve: [0,0,0,0,0,0,0,.02,.06,.14,.24,.26,.18,.10] },
   { k: "Cp", camp: "CORE",  name: "Profundización",      vol: 733,  fill: "#AAD0C8", curve: [0,0,0,0,0,0,0,0,.02,.06,.12,.22,.30,.28] },
 ];
+// Capa de análisis: 4 tipos de colegio por campaña. Cada tipo tiene su mezcla (% de
+// colegios de la campaña) y su propia matriz de servicios/colegio (uso, prof, didác).
+export type TierKey = "top" | "alto" | "medio" | "bajo";
+export interface Tier {
+  key: TierKey;
+  label: string;
+  /** % de colegios de la campaña que son de este tipo (se normaliza si no suman 100). */
+  pct: number;
+  /** Servicios/colegio de este tipo. */
+  uso: number; prof: number; didac: number;
+}
+// Semilla base (placeholder, editable): mezcla y matriz de ejemplo.
+export const TIER_SEED: Tier[] = [
+  { key: "top",   label: "Top",   pct: 10, uso: 3, prof: 2, didac: 1 },
+  { key: "alto",  label: "Alto",  pct: 25, uso: 2, prof: 2, didac: 1 },
+  { key: "medio", label: "Medio", pct: 40, uso: 1, prof: 1, didac: 1 },
+  { key: "bajo",  label: "Bajo",  pct: 25, uso: 1, prof: 1, didac: 0 },
+];
+const cloneTiers = (ts: Tier[]): Tier[] => ts.map((t) => ({ ...t }));
+
 export interface CostInputs {
   /** Costo unitario por servicio (MXN). */
   costoUso: number; costoProf: number; costoDidac: number;
@@ -68,20 +88,18 @@ export interface CostInputs {
 
 export interface Defaults extends CostInputs {
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
-  /** Volumen de colegios por campaña. */
+  /** Volumen total de colegios por campaña. */
   vSmart: number; vCore: number;
-  /** Servicios/colegio por tipo (SMART y CORE). */
-  tUsoS: number; tProfS: number; tAdicS: number;
-  tUsoC: number; tProfC: number; tAdicC: number;
+  /** 4 tipos de colegio por campaña (mezcla % + matriz de servicios/colegio). */
+  tiersSmart: Tier[]; tiersCore: Tier[];
   retS: number; retC: number;
 }
 
 export const DEFAULTS: Defaults = {
   nAse:10, tDay:2, dWeek:5, wMonth:4.33, prodExt:30,
-  // volumen de colegios por campaña y servicios/colegio por tipo (SMART y CORE)
+  // volumen total por campaña; el detalle por tipo de colegio va en tiersSmart/tiersCore
   vSmart:321, vCore:1047,
-  tUsoS:3, tProfS:3, tAdicS:1,
-  tUsoC:3, tProfC:3, tAdicC:1,
+  tiersSmart: cloneTiers(TIER_SEED), tiersCore: cloneTiers(TIER_SEED),
   retS:94, retC:89,
   // costos: didácticas $3,750 y traslados $1,500; uso/prof en 0. Solo didácticas viajan (40%).
   costoUso:0, costoProf:0, costoDidac:3750, costoTraslado:1500,
@@ -100,9 +118,19 @@ export interface ComputeInput extends CostInputs {
   curves: Curves;
   nAse: number; tDay: number; dWeek: number; wMonth: number; prodExt: number;
   vSmart: number; vCore: number;
-  tUsoS: number; tProfS: number; tAdicS: number;
-  tUsoC: number; tProfC: number; tAdicC: number;
+  tiersSmart: Tier[]; tiersCore: Tier[];
   retS: number; retC: number;
+}
+
+/** Agrega los 4 tipos de colegio de una campaña a servicios anuales por tipo de servicio. */
+export function aggregateTiers(vTotal: number, tiers: Tier[]): { uso: number; prof: number; didac: number } {
+  const sumPct = tiers.reduce((s, t) => s + t.pct, 0) || 1;
+  let uso = 0, prof = 0, didac = 0;
+  for (const t of tiers) {
+    const n = vTotal * (t.pct / sumPct);   // # colegios de este tipo
+    uso += n * t.uso; prof += n * t.prof; didac += n * t.didac;
+  }
+  return { uso, prof, didac };
 }
 
 export interface MonthRow {
@@ -134,6 +162,16 @@ export interface Costs {
   total: number;       // servicios + traslados
 }
 
+// Capa de análisis: contribución de cada tipo de colegio (anual).
+export interface TierBreakdownRow {
+  campaign: Campaign;
+  key: TierKey;
+  label: string;
+  n: number;          // # de colegios de este tipo
+  uso: number; prof: number; didac: number;  // servicios anuales por tipo de servicio
+  servicios: number;  // total de servicios del estrato
+}
+
 export interface ComputeKpis {
   cap: number; totalT: number; peak: MonthRow; extPeak: MonthRow; meses: number;
   utilA: number; utilP: number; cabExtPico: number;
@@ -142,6 +180,7 @@ export interface ComputeKpis {
   totRetSmart: number; totConqSmart: number; totRetCore: number; totConqCore: number;
   pctConqSmart: number; pctConqCore: number;
   costs: Costs;
+  tiers: TierBreakdownRow[];   // 8 filas: 4 SMART + 4 CORE
 }
 
 export interface ComputeResult {
@@ -155,12 +194,13 @@ export function compute(st: ComputeInput): ComputeResult {
   const rS = (st.retS || 0) / 100, rC = (st.retC || 0) / 100;
   // proporciones de traslado a fracción (0-1)
   const pTU = (st.propTrasUso || 0) / 100, pTP = (st.propTrasProf || 0) / 100, pTD = (st.propTrasDidac || 0) / 100;
+  // servicios anuales por tipo de servicio, agregando los 4 tipos de colegio de cada campaña
+  const smA = aggregateTiers(st.vSmart, st.tiersSmart), coA = aggregateTiers(st.vCore, st.tiersCore);
   const rows: MonthRow[] = [];
   for (let i = 0; i < 12; i++) {
-    const usoT = st.vSmart * cS[i] * st.tUsoS, profT = st.vSmart * cS[i] * st.tProfS;
-    const adicST = st.vSmart * cS[i] * st.tAdicS;
-    const usoCT = st.vCore * cC[i] * st.tUsoC, profCT = st.vCore * cC[i] * st.tProfC;
-    const adicCT = st.vCore * cC[i] * st.tAdicC;
+    // la curva de la campaña reparte el total anual entre los meses (norm suma 1)
+    const usoT = smA.uso * cS[i], profT = smA.prof * cS[i], adicST = smA.didac * cS[i];
+    const usoCT = coA.uso * cC[i], profCT = coA.prof * cC[i], adicCT = coA.didac * cC[i];
     const smart = usoT + profT + adicST, core = adicCT + usoCT + profCT;
     // uso/prof (SMART + CORE): empleados mientras haya capacidad; el sobrecupo entra a externos.
     const up = usoT + profT + usoCT + profCT;
@@ -206,6 +246,19 @@ export function compute(st: ComputeInput): ComputeResult {
   const costTrasCost = byType.reduce((s, r) => s + r.costoTraslados, 0);
   const trasladosN = byType.reduce((s, r) => s + r.traslados, 0);
   const costs: Costs = { byType, servicios: costServicios, traslados: costTrasCost, trasladosN, total: costServicios + costTrasCost };
+  // capa de análisis: contribución de cada tipo de colegio (4 SMART + 4 CORE)
+  const tierRows = (camp: Campaign, vTotal: number, tiers: Tier[]): TierBreakdownRow[] => {
+    const sumPct = tiers.reduce((s, t) => s + t.pct, 0) || 1;
+    return tiers.map((t) => {
+      const n = vTotal * (t.pct / sumPct);
+      const uso = n * t.uso, prof = n * t.prof, didac = n * t.didac;
+      return { campaign: camp, key: t.key, label: t.label, n, uso, prof, didac, servicios: uso + prof + didac };
+    });
+  };
+  const tiers: TierBreakdownRow[] = [
+    ...tierRows("SMART", st.vSmart, st.tiersSmart),
+    ...tierRows("CORE", st.vCore, st.tiersCore),
+  ];
   const k: ComputeKpis = {
     cap, totalT, peak, extPeak, meses,
     utilA: cap ? sum((x) => x.cov) / (cap * 12) : 0,
@@ -217,6 +270,7 @@ export function compute(st: ComputeInput): ComputeResult {
     pctConqSmart: totSmart ? totConqSmart / totSmart : 0,
     pctConqCore: totCore ? totConqCore / totCore : 0,
     costs,
+    tiers,
   };
   return { rows, k };
 }

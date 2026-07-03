@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MONTHS, DEF_CURVES, DEFAULTS, SERVICE_PROFILES,
+  MONTHS, DEF_CURVES, DEFAULTS, SERVICE_PROFILES, TIER_SEED, aggregateTiers,
   genCurve, compute, R,
   type ComputeInput, type Curves,
 } from './model';
@@ -143,27 +143,27 @@ describe('compute — costos', () => {
     expect(DEFAULTS.propTrasDidac).toBe(40);
   });
 
-  it('el # de servicios por tipo = volumen × servicios/colegio (las curvas normalizan a 1)', () => {
+  it('el # de servicios por tipo = agregado de los estratos de ambas campañas', () => {
     const { k } = compute(baseInput());
     const byKey = Object.fromEntries(k.costs.byType.map((r) => [r.key, r]));
-    // cubetas por tipo: SMART (vSmart×serv) + CORE (vCore×serv)
-    expect(byKey.uso.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tUsoS + DEFAULTS.vCore * DEFAULTS.tUsoC, 6);    // 321×3 + 1047×3
-    expect(byKey.prof.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tProfS + DEFAULTS.vCore * DEFAULTS.tProfC, 6); // 321×3 + 1047×3
-    expect(byKey.didac.n).toBeCloseTo(DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC, 6); // 321×1 + 1047×1
+    const sm = aggregateTiers(DEFAULTS.vSmart, DEFAULTS.tiersSmart);
+    const co = aggregateTiers(DEFAULTS.vCore, DEFAULTS.tiersCore);
+    expect(byKey.uso.n).toBeCloseTo(sm.uso + co.uso, 4);
+    expect(byKey.prof.n).toBeCloseTo(sm.prof + co.prof, 4);
+    expect(byKey.didac.n).toBeCloseTo(sm.didac + co.didac, 4);
   });
 
   it('costo de servicios = Σ (Nₛ × costo unitario); con las semillas solo didácticas cuestan', () => {
     const { k } = compute(baseInput());
-    const nDidac = DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC; // 321 + 1047 = 1368
-    expect(k.costs.servicios).toBeCloseTo(nDidac * 3750, 4); // 1368 × 3750 = 5,130,000
-    expect(k.costs.servicios).toBeCloseTo(5130000, 4);
+    const nDidac = aggregateTiers(DEFAULTS.vSmart, DEFAULTS.tiersSmart).didac + aggregateTiers(DEFAULTS.vCore, DEFAULTS.tiersCore).didac;
+    expect(k.costs.servicios).toBeCloseTo(nDidac * 3750, 3);
   });
 
   it('costo de traslados = Σ (Nₛ × proporción) × costo por traslado; solo didácticas al 40%', () => {
     const { k } = compute(baseInput());
-    const nDidac = DEFAULTS.vSmart * DEFAULTS.tAdicS + DEFAULTS.vCore * DEFAULTS.tAdicC; // 1368
-    expect(k.costs.trasladosN).toBeCloseTo(nDidac * 0.4, 6);          // 547.2 traslados
-    expect(k.costs.traslados).toBeCloseTo(nDidac * 0.4 * 1500, 4);    // 547.2 × 1500 = 820,800
+    const nDidac = aggregateTiers(DEFAULTS.vSmart, DEFAULTS.tiersSmart).didac + aggregateTiers(DEFAULTS.vCore, DEFAULTS.tiersCore).didac;
+    expect(k.costs.trasladosN).toBeCloseTo(nDidac * 0.4, 6);
+    expect(k.costs.traslados).toBeCloseTo(nDidac * 0.4 * 1500, 3);
   });
 
   it('costo total = servicios + traslados, y coincide con la suma mensual', () => {
@@ -195,20 +195,23 @@ describe('compute — costos', () => {
 });
 
 describe('compute — modelo por campaña (SMART/CORE)', () => {
-  it('semillas: volúmenes 321/1047 y 3/3/1 servicios/colegio en ambas campañas', () => {
+  it('semillas: totales 321/1047 y 4 tipos de colegio (mezcla + matriz) por campaña', () => {
     expect(DEFAULTS.vSmart).toBe(321);
     expect(DEFAULTS.vCore).toBe(1047);
-    expect(DEFAULTS.tUsoS).toBe(3); expect(DEFAULTS.tProfS).toBe(3); expect(DEFAULTS.tAdicS).toBe(1);
-    expect(DEFAULTS.tUsoC).toBe(3); expect(DEFAULTS.tProfC).toBe(3); expect(DEFAULTS.tAdicC).toBe(1);
+    expect(DEFAULTS.tiersSmart).toHaveLength(4);
+    expect(DEFAULTS.tiersCore).toHaveLength(4);
+    expect(DEFAULTS.tiersSmart.map((t) => t.key)).toEqual(['top', 'alto', 'medio', 'bajo']);
+    expect(DEFAULTS.tiersSmart[0]).toMatchObject({ uso: 3, prof: 2, didac: 1 }); // matriz de ejemplo
+    expect(TIER_SEED.reduce((s, t) => s + t.pct, 0)).toBe(100);
   });
 
-  it('cada campaña = volumen × (uso+prof+didác); total 9576', () => {
+  it('cada campaña agrega sus 4 tipos de colegio; el total es la suma de ambas', () => {
     const { k } = compute(baseInput());
-    const smart = DEFAULTS.vSmart * (DEFAULTS.tUsoS + DEFAULTS.tProfS + DEFAULTS.tAdicS); // 321×7 = 2247
-    const core = DEFAULTS.vCore * (DEFAULTS.tUsoC + DEFAULTS.tProfC + DEFAULTS.tAdicC);   // 1047×7 = 7329
-    expect(k.totSmart).toBeCloseTo(smart, 4);
-    expect(k.totCore).toBeCloseTo(core, 4);
-    expect(k.totalT).toBeCloseTo(9576, 4);
+    const sm = aggregateTiers(DEFAULTS.vSmart, DEFAULTS.tiersSmart);
+    const co = aggregateTiers(DEFAULTS.vCore, DEFAULTS.tiersCore);
+    expect(k.totSmart).toBeCloseTo(sm.uso + sm.prof + sm.didac, 4);
+    expect(k.totCore).toBeCloseTo(co.uso + co.prof + co.didac, 4);
+    expect(k.totalT).toBeCloseTo(k.totSmart + k.totCore, 4);
   });
 
   it('con vCore=0 no hay CORE y SMART queda intacto', () => {
@@ -247,5 +250,40 @@ describe('compute — modelo por campaña (SMART/CORE)', () => {
   it('totExt = extUP + adicExt en cada mes', () => {
     const { rows } = compute(baseInput());
     rows.forEach((r) => expect(r.totExt).toBeCloseTo(r.extUP + r.adicExt, 6));
+  });
+});
+
+describe('compute — capa de análisis por tipo de colegio', () => {
+  it('devuelve 8 filas (4 SMART + 4 CORE) y los colegios de cada campaña suman su total', () => {
+    const { k } = compute(baseInput());
+    expect(k.tiers).toHaveLength(8);
+    const smart = k.tiers.filter((t) => t.campaign === 'SMART');
+    const core = k.tiers.filter((t) => t.campaign === 'CORE');
+    expect(smart).toHaveLength(4);
+    expect(core).toHaveLength(4);
+    expect(smart.reduce((s, t) => s + t.n, 0)).toBeCloseTo(DEFAULTS.vSmart, 4);
+    expect(core.reduce((s, t) => s + t.n, 0)).toBeCloseTo(DEFAULTS.vCore, 4);
+  });
+
+  it('la suma de servicios de los estratos coincide con totalT', () => {
+    const { k } = compute(baseInput());
+    const servTiers = k.tiers.reduce((s, t) => s + t.servicios, 0);
+    expect(servTiers).toBeCloseTo(k.totalT, 3);
+  });
+
+  it('la mezcla se normaliza: duplicar todos los % no cambia los resultados', () => {
+    const base = compute(baseInput());
+    const doubled = compute(baseInput({
+      tiersSmart: DEFAULTS.tiersSmart.map((t) => ({ ...t, pct: t.pct * 2 })),
+      tiersCore: DEFAULTS.tiersCore.map((t) => ({ ...t, pct: t.pct * 2 })),
+    }));
+    expect(doubled.k.totalT).toBeCloseTo(base.k.totalT, 4);
+  });
+
+  it('un colegio tipo top aporta más servicios que uno bajo (misma campaña)', () => {
+    const { k } = compute(baseInput());
+    const top = k.tiers.find((t) => t.campaign === 'SMART' && t.key === 'top')!;
+    const bajo = k.tiers.find((t) => t.campaign === 'SMART' && t.key === 'bajo')!;
+    expect(top.servicios / top.n).toBeGreaterThan(bajo.servicios / bajo.n);
   });
 });

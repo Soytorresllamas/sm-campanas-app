@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect } from 'react'
+import { Fragment, useMemo, useState, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from 'recharts'
 import { MONTHS, STREAMS, DEF_CURVES, DEFAULTS, genCurve, compute, R } from '../data/model'
-import type { Curves, Defaults, ComputeKpis } from '../data/model'
+import type { Curves, Defaults, ComputeKpis, Tier } from '../data/model'
 
 const SMART = '#2563B0', CORE = '#2C8A7B', BLUEL = '#9BBFE8', GOLD = '#B5841C'
 // Intensidad por tipo de servicio: uso (oscuro) → profundización (medio) → didácticas (claro).
@@ -50,14 +50,48 @@ function RetConq({ label, value, retColor, conqColor, onChange }: RetConqProps) 
   )
 }
 
+const TIER_FIELDS: [keyof Pick<Tier, 'pct' | 'uso' | 'prof' | 'didac'>, string][] = [
+  ['pct', '%'], ['uso', 'Uso'], ['prof', 'Prof'], ['didac', 'Didác'],
+]
+interface TierMatrixProps {
+  title: string; color: string; total: number; tiers: Tier[];
+  onTotal: (v: number) => void;
+  onCell: (idx: number, field: 'pct' | 'uso' | 'prof' | 'didac', v: number) => void;
+}
+function TierMatrix({ title, color, total, tiers, onTotal, onCell }: TierMatrixProps) {
+  const sumPct = tiers.reduce((s, t) => s + t.pct, 0)
+  return (
+    <div className="panel">
+      <h3 style={{ color }}>{title}</h3>
+      <Num label="Total de colegios" value={total} onChange={onTotal} />
+      <div style={{ display: 'grid', gridTemplateColumns: '46px repeat(4, 1fr)', gap: 4, alignItems: 'center', fontSize: 11, marginTop: 6 }}>
+        <span />
+        {TIER_FIELDS.map(([f, lbl]) => <span key={f} style={{ textAlign: 'center', color: '#646A75' }}>{lbl}</span>)}
+        {tiers.map((t, idx) => (
+          <Fragment key={t.key}>
+            <span style={{ fontWeight: 600 }}>{t.label}</span>
+            {TIER_FIELDS.map(([f]) => (
+              <input key={f} type="number" min={0} value={t[f]}
+                onChange={(e) => onCell(idx, f, parseFloat(e.target.value) || 0)}
+                style={{ width: '100%', padding: '3px 2px', fontSize: 11, textAlign: 'center' }} />
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      <div className="hint" style={sumPct !== 100 ? { color: 'var(--pur)' } : undefined}>
+        Mezcla = {R(sumPct)}%{sumPct !== 100 ? ' (se normaliza a 100%)' : ''}.
+      </div>
+    </div>
+  )
+}
+
 interface Scenarios { A: ComputeKpis | null; B: ComputeKpis | null }
 
 export default function Simulador() {
-  const [n, setN] = useState<Defaults>({ ...DEFAULTS })
+  const initN = (): Defaults => ({ ...DEFAULTS, tiersSmart: DEFAULTS.tiersSmart.map((t) => ({ ...t })), tiersCore: DEFAULTS.tiersCore.map((t) => ({ ...t })) })
+  const [n, setN] = useState<Defaults>(initN)
   const [curves, setCurves] = useState<Curves>(() => JSON.parse(JSON.stringify(DEF_CURVES)))
   const [shapes, setShapes] = useState(() => STREAMS.map((s) => ({ focal: s.focal, spread: s.spread })))
-  const [intens, setIntens] = useState(1)
-  const [linked, setLinked] = useState(true)
   const [scen, setScen] = useState<Scenarios>(() => {
     try { const r = localStorage.getItem('sm-sim-scen-v1'); if (r) return JSON.parse(r) } catch { /* noop */ }
     return { A: null, B: null }
@@ -65,12 +99,10 @@ export default function Simulador() {
   useEffect(() => { try { localStorage.setItem('sm-sim-scen-v1', JSON.stringify(scen)) } catch { /* noop */ } }, [scen])
 
   const set = (key: keyof Defaults, v: number) => setN((p) => ({ ...p, [key]: v }))
+  const setTier = (which: 'tiersSmart' | 'tiersCore', idx: number, field: 'pct' | 'uso' | 'prof' | 'didac', v: number) =>
+    setN((p) => ({ ...p, [which]: p[which].map((t, i) => i === idx ? { ...t, [field]: v } : t) }))
   const { rows, k } = useMemo(() => compute({ ...n, curves }), [n, curves])
 
-  const applyIntensity = (f: number) => {
-    setIntens(f); setLinked(true)
-    setN((p) => ({ ...p, tUsoS: Math.round(1 + 2 * f), tProfS: Math.round(2 + 1 * f), tAdicS: 1 }))
-  }
   const setShape = (i: number, field: 'focal' | 'spread', v: number) => {
     const ns = shapes.map((s, j) => j === i ? { ...s, [field]: v } : s)
     setShapes(ns)
@@ -78,8 +110,8 @@ export default function Simulador() {
     setCurves((p) => ({ ...p, [st.k]: genCurve(ns[i].focal, ns[i].spread, st.win) }))
   }
   const reset = () => {
-    setN({ ...DEFAULTS }); setCurves(JSON.parse(JSON.stringify(DEF_CURVES)))
-    setShapes(STREAMS.map((s) => ({ focal: s.focal, spread: s.spread }))); setIntens(1); setLinked(true)
+    setN(initN()); setCurves(JSON.parse(JSON.stringify(DEF_CURVES)))
+    setShapes(STREAMS.map((s) => ({ focal: s.focal, spread: s.spread })))
   }
   const saveScen = (slot: 'A' | 'B') => setScen((p) => ({ ...p, [slot]: { ...k } }))
   const exportCSV = () => {
@@ -120,15 +152,7 @@ export default function Simulador() {
         <div>
           <div className="panel">
             <h3>Escenario</h3>
-            <div className="seg">
-              {([['Conservador', 0], ['Base', 0.5], ['Techo', 1]] as [string, number][]).map(([lbl, f]) => (
-                <button key={lbl} className={Math.abs(intens - f) < 0.001 && linked ? 'on' : ''} onClick={() => applyIntensity(f)}>{lbl}</button>
-              ))}
-            </div>
-            <div className="fld">
-              <label>Intensidad de servicios <span className="u">(conservador → techo)</span></label>
-              <input type="range" min="0" max="1" step="0.05" value={intens} onChange={(e) => applyIntensity(parseFloat(e.target.value))} />
-            </div>
+            <div className="hint" style={{ marginTop: 0 }}>Guarda A/B para comparar variantes de la matriz de colegios.</div>
             <div className="row-btn">
               <button className="sec" onClick={() => saveScen('A')}>Guardar A</button>
               <button className="sec" onClick={() => saveScen('B')}>Guardar B</button>
@@ -150,31 +174,13 @@ export default function Simulador() {
             <div className="capnote">Capacidad ≈ {R(k.cap)} servicios/mes ({n.nAse} asesores)</div>
           </div>
 
-          <div className="panel">
-            <h3>Servicios por colegio</h3>
-            <div style={{ fontSize: 11, fontWeight: 700, color: SMART, margin: '2px 0 6px' }}>SMART</div>
-            <div className="three">
-              <Num label="Uso" value={n.tUsoS} onChange={(v) => { setLinked(false); set('tUsoS', v) }} />
-              <Num label="Profund." value={n.tProfS} onChange={(v) => { setLinked(false); set('tProfS', v) }} />
-              <Num label="Didác." value={n.tAdicS} onChange={(v) => set('tAdicS', v)} />
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: CORE, margin: '10px 0 6px' }}>CORE</div>
-            <div className="three">
-              <Num label="Uso" value={n.tUsoC} onChange={(v) => set('tUsoC', v)} />
-              <Num label="Profund." value={n.tProfC} onChange={(v) => set('tProfC', v)} />
-              <Num label="Didác." value={n.tAdicC} onChange={(v) => set('tAdicC', v)} />
-            </div>
-            <div className="hint">Cuántos servicios de cada tipo recibe un colegio. La intensidad ajusta SMART uso/prof; editar a mano lo desvincula.</div>
-          </div>
+          <TierMatrix title="Colegios SMART por tipo" color={SMART}
+            total={n.vSmart} tiers={n.tiersSmart}
+            onTotal={(v) => set('vSmart', v)} onCell={(i, f, v) => setTier('tiersSmart', i, f, v)} />
 
-          <div className="panel">
-            <h3>Volúmenes (colegios)</h3>
-            <div className="two">
-              <Num label="SMART" value={n.vSmart} onChange={(v) => set('vSmart', v)} />
-              <Num label="CORE" value={n.vCore} onChange={(v) => set('vCore', v)} />
-            </div>
-            <div className="hint">Colegios por campaña. Cada colegio recibe uso + profundización + didácticas según «Servicios por colegio».</div>
-          </div>
+          <TierMatrix title="Colegios CORE por tipo" color={CORE}
+            total={n.vCore} tiers={n.tiersCore}
+            onTotal={(v) => set('vCore', v)} onCell={(i, f, v) => setTier('tiersCore', i, f, v)} />
 
           <div className="panel">
             <h3>Retención vs conquista</h3>
@@ -303,6 +309,29 @@ export default function Simulador() {
             </tbody>
           </table>
           <div className="hint">Un traslado es un evento de costo fijo; su cantidad sale de la proporción de servicios de cada tipo que requieren desplazamiento. Ajusta costos y proporciones en el panel «Costos».</div>
+
+          <h2>5 · Análisis por tipo de colegio</h2>
+          <table>
+            <thead><tr><th>Campaña</th><th>Tipo</th><th>Colegios</th><th>Uso</th><th>Profund.</th><th>Didácticas</th><th>Servicios</th></tr></thead>
+            <tbody>
+              {(['SMART', 'CORE'] as const).map((camp) => {
+                const rowsC = k.tiers.filter((t) => t.campaign === camp)
+                const tot = rowsC.reduce((a, t) => ({ n: a.n + t.n, uso: a.uso + t.uso, prof: a.prof + t.prof, didac: a.didac + t.didac, serv: a.serv + t.servicios }), { n: 0, uso: 0, prof: 0, didac: 0, serv: 0 })
+                return (
+                  <Fragment key={camp}>
+                    {rowsC.map((t) => (
+                      <tr key={camp + t.key}>
+                        <td style={{ color: camp === 'SMART' ? SMART : CORE, fontWeight: 600 }}>{camp}</td>
+                        <td>{t.label}</td><td>{R(t.n)}</td><td>{R(t.uso)}</td><td>{R(t.prof)}</td><td>{R(t.didac)}</td><td>{R(t.servicios)}</td>
+                      </tr>
+                    ))}
+                    <tr className="total"><td>{camp}</td><td>Total</td><td>{R(tot.n)}</td><td>{R(tot.uso)}</td><td>{R(tot.prof)}</td><td>{R(tot.didac)}</td><td>{R(tot.serv)}</td></tr>
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="hint">Servicios anuales que aporta cada tipo de colegio (# colegios × servicios/colegio del tipo). La suma coincide con «Servicios totales» = {R(k.totalT)}.</div>
 
           {(scen.A || scen.B) && (
             <>
