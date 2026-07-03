@@ -371,8 +371,9 @@ export default function Planeacion() {
               <h3 style={{ marginTop: 0 }}>Carga masiva de colegios · archivo de BI</h3>
               <p style={{ fontSize: 12, color: 'var(--mut)', margin: '4px 0 10px', lineHeight: 1.5 }}>
                 Cuando Inteligencia de Negocio entregue el catálogo real, impórtalo aquí (Excel o CSV con la
-                plantilla oficial). Reemplaza los cupos simulados; el «Ejecutivo Responsable» se vuelve asesor
-                y recibe sus colegios en automático. Mientras tanto, los cupos del Simulador siguen funcionando.
+                plantilla oficial). Reemplaza los cupos simulados; el «Asesor Pedagógico» se vuelve asesor y
+                recibe sus colegios en automático (el «Ejecutivo Responsable» comercial queda como dato para
+                análisis). Mientras tanto, los cupos del Simulador siguen funcionando.
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <a className="sec" href={`${import.meta.env.BASE_URL}plantilla-colegios.xlsx`} download="plantilla-colegios.xlsx"

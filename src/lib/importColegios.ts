@@ -17,7 +17,9 @@ const ALIAS: Record<string, string[]> = {
   tier:       ['categoria de colegio', 'categoria del colegio', 'categoria', 'tipo de colegio'],
   valorReal:  ['valor real de colegio', 'valor real del colegio', 'valor real', 'valor'],
   gerencia:   ['gerencia responsable', 'gerencia'],
-  ejecutivo:  ['ejecutivo responsable', 'ejecutivo', 'asesor responsable', 'asesor'],
+  // dos figuras DISTINTAS: el ejecutivo comercial (dato) y el asesor pedagógico (asigna)
+  ejecutivo:  ['ejecutivo responsable', 'ejecutivo comercial responsable', 'ejecutivo comercial', 'ejecutivo'],
+  asesorPed:  ['asesor pedagogico', 'asesor pedagogico responsable', 'asesor'],
   antiguedad: ['anos de antiguedad', 'anios de antiguedad', 'antiguedad'],
   seriePre:   ['serie preescolar'],
   seriePri:   ['serie primaria'],
@@ -97,6 +99,7 @@ export function mapearFilas(registros: Record<string, unknown>[]): MapeoResultad
       valorReal: parseNum(porCampo.get('valorReal')),
       gerencia: texto(porCampo.get('gerencia')),
       ejecutivo: texto(porCampo.get('ejecutivo')),
+      asesorPed: texto(porCampo.get('asesorPed')),
       antiguedad: parseNum(porCampo.get('antiguedad')),
       seriesNivel: nivel('seriePre', 'seriePri', 'serieSec', 'serieBach'),
       inglesNivel: nivel('inglesPre', 'inglesPri', 'inglesSec', 'inglesBach'),

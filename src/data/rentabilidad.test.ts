@@ -18,13 +18,16 @@ describe('mapearFilas (archivo de BI → FilaColegio)', () => {
     const { filas, errores } = mapearFilas([{
       'Nombre de Colegio': 'Instituto Cumbres', 'ID en CRM': 'CRM-1', 'Clave de Colegio': 'MX-1',
       'Campaña': 'SMART', 'Categoría de Colegio': 'Top', 'Valor Real de Colegio': '$985,000',
-      'Gerencia Responsable': 'Centro', 'Ejecutivo Responsable': 'Mariana López', 'Años de Antigüedad': '12',
+      'Gerencia Responsable': 'Centro', 'Ejecutivo Responsable': 'Mariana López',
+      'Asesor Pedagógico': 'Laura Sánchez', 'Años de Antigüedad': '12',
       'Serie Primaria': 'Acierta', 'Inglés Secundaria': 'Winglish', 'Otra Serie': '',
     }]);
     expect(errores).toEqual([]);
     expect(filas[0]).toMatchObject({
       nombre: 'Instituto Cumbres', idCrm: 'CRM-1', clave: 'MX-1', campaign: 'SMART', tier: 'top',
-      valorReal: 985000, gerencia: 'Centro', ejecutivo: 'Mariana López', antiguedad: 12,
+      valorReal: 985000, gerencia: 'Centro', antiguedad: 12,
+      ejecutivo: 'Mariana López',   // comercial: dato del colegio
+      asesorPed: 'Laura Sánchez',   // pedagógico: asigna
       seriesNivel: { pri: 'Acierta' }, inglesNivel: { sec: 'Winglish' },
     });
   });
@@ -83,21 +86,34 @@ describe('importarColegios', () => {
     expect(data.colegios[1].servicios).toHaveLength(2);  // Bajo: 1+1+0
   });
 
-  it('casa ejecutivos con asesores existentes (sin acentos/caja) y crea los nuevos', () => {
+  it('casa asesores pedagógicos existentes (sin acentos/caja) y crea los nuevos', () => {
     const d = base();
-    d.asesores[0].nombre = 'Mariana López';
+    d.asesores[0].nombre = 'Laura Sánchez';
     const { data, resumen } = importarColegios(d, [
-      fila({ ejecutivo: 'mariana lopez' }),          // existente (normalizado)
-      fila({ nombre: 'B', ejecutivo: 'Jorge Ramírez' }),
-      fila({ nombre: 'C', ejecutivo: 'Jorge Ramírez' }), // repetido → mismo asesor
-      fila({ nombre: 'D' }),                          // sin ejecutivo → sin asignar
+      fila({ asesorPed: 'laura sanchez' }),          // existente (normalizado)
+      fila({ nombre: 'B', asesorPed: 'Pedro Gómez' }),
+      fila({ nombre: 'C', asesorPed: 'Pedro Gómez' }), // repetido → mismo asesor
+      fila({ nombre: 'D' }),                          // sin asesor pedagógico → sin asignar
     ]);
     expect(resumen.asesoresNuevos).toBe(1);
     expect(resumen.asignados).toBe(3);
     expect(data.colegios[0].asesorId).toBe(d.asesores[0].id);
     expect(data.colegios[1].asesorId).toBe(data.colegios[2].asesorId);
     expect(data.colegios[3].asesorId).toBeNull();
-    expect(data.asesores).toHaveLength(3); // 2 default + Jorge
+    expect(data.asesores).toHaveLength(3); // 2 default + Pedro
+  });
+
+  it('NO confunde al ejecutivo comercial con el asesor: no crea asesor ni asigna', () => {
+    const { data, resumen } = importarColegios(base(), [
+      fila({ ejecutivo: 'Mariana López' }),                              // solo comercial
+      fila({ nombre: 'B', ejecutivo: 'Mariana López', asesorPed: 'Pedro Gómez' }), // ambas figuras
+    ]);
+    expect(resumen.asesoresNuevos).toBe(1);            // solo Pedro (pedagógico)
+    expect(resumen.asignados).toBe(1);
+    expect(data.colegios[0].asesorId).toBeNull();      // el comercial no asigna
+    expect(data.colegios[0].ejecutivo).toBe('Mariana López'); // pero sí se guarda como dato
+    expect(data.asesores.some((a) => a.nombre === 'Mariana López')).toBe(false);
+    expect(data.asesores.some((a) => a.nombre === 'Pedro Gómez')).toBe(true);
   });
 
   it('usa el ID de CRM como clave estable y desambigua repetidos', () => {

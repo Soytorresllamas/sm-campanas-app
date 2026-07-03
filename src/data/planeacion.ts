@@ -58,7 +58,7 @@ export interface Colegio {
   clave?: string;
   valorReal?: number;        // MXN; ingreso real del colegio (base de rentabilidad)
   gerencia?: string;
-  ejecutivo?: string;        // ejecutivo responsable (se propaga como asesor)
+  ejecutivo?: string;        // ejecutivo COMERCIAL responsable (dato de análisis; NO es el asesor)
   antiguedad?: number;       // años
   seriesNivel?: PorNivel;    // serie por nivel escolar
   inglesNivel?: PorNivel;    // inglés por nivel escolar
@@ -322,13 +322,16 @@ export interface FilaColegio {
   campaign: Campaign;
   tier: TierKey;
   idCrm?: string; clave?: string; valorReal?: number;
-  gerencia?: string; ejecutivo?: string; antiguedad?: number;
+  gerencia?: string;
+  ejecutivo?: string;      // ejecutivo comercial (queda como dato del colegio)
+  asesorPed?: string;      // asesor pedagógico → se casa/crea como asesor y recibe el colegio
+  antiguedad?: number;
   seriesNivel?: PorNivel; inglesNivel?: PorNivel; otraSerie?: string;
 }
 
 export interface ImportResumen {
   colegios: number;                    // colegios importados
-  asesoresNuevos: number;              // creados a partir de «Ejecutivo Responsable»
+  asesoresNuevos: number;              // creados a partir de «Asesor Pedagógico»
   asignados: number;                   // colegios que quedaron con asesor
   porCampaign: Record<Campaign, number>;
 }
@@ -341,8 +344,10 @@ const slug = (s: string): string => normNombre(s).replace(/[^a-z0-9]+/g, '-').re
 
 /** Reemplaza los cupos simulados por el catálogo real de BI. Los servicios de cada
  *  colegio salen de su campaña+categoría (misma matriz del Simulador). Cada
- *  «Ejecutivo Responsable» se casa con un asesor existente por nombre o se crea,
- *  y el colegio queda asignado a él (así se propaga a las hojas de asesores). */
+ *  «Asesor Pedagógico» se casa con un asesor existente por nombre o se crea, y el
+ *  colegio queda asignado a él (así se propaga a las hojas de asesores). El
+ *  «Ejecutivo Responsable» es la figura COMERCIAL: se guarda como dato del colegio
+ *  para análisis/filtros y nunca se convierte en asesor. */
 export function importarColegios(data: PlaneacionData, filas: FilaColegio[]): { data: PlaneacionData; resumen: ImportResumen } {
   const asesores = [...data.asesores];
   const porNombre = new Map(asesores.map((a) => [normNombre(a.nombre), a.id]));
@@ -360,14 +365,14 @@ export function importarColegios(data: PlaneacionData, filas: FilaColegio[]): { 
     for (let n = 2; idsUsados.has(id); n++) id = `${id.replace(/~\d+$/, '')}~${n}`;
     idsUsados.add(id);
 
-    // ejecutivo responsable → asesor (crea si no existe)
+    // asesor pedagógico → asesor (crea si no existe); el ejecutivo comercial NO asigna
     let asesorId: string | null = null;
-    if (f.ejecutivo?.trim()) {
-      const key = normNombre(f.ejecutivo);
+    if (f.asesorPed?.trim()) {
+      const key = normNombre(f.asesorPed);
       asesorId = porNombre.get(key) ?? null;
       if (!asesorId) {
-        asesorId = `ase-imp-${slug(f.ejecutivo)}`;
-        asesores.push({ id: asesorId, nombre: f.ejecutivo.trim() });
+        asesorId = `ase-imp-${slug(f.asesorPed)}`;
+        asesores.push({ id: asesorId, nombre: f.asesorPed.trim() });
         porNombre.set(key, asesorId);
         asesoresNuevos++;
       }

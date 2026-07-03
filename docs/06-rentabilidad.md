@@ -22,7 +22,8 @@ la genera `scripts/plantilla-colegios.mjs`.
 | Categoría de Colegio | ✔ | Top / Alto / Medio / Bajo (o Tipo 1‑4) | matriz de servicios del Simulador (3/2/1, 2/2/1, 1/1/1, 1/1/0) |
 | Valor Real de Colegio | recomendada | número MXN | base del módulo de Rentabilidad |
 | Gerencia Responsable | recomendada | texto | filtros/agrupación en Rentabilidad |
-| Ejecutivo Responsable | recomendada | nombre | se casa con un asesor existente (sin acentos/caja) o **se crea**, y el colegio queda asignado a él → se propaga a su hoja y a su portal |
+| Ejecutivo Responsable | recomendada | nombre | ejecutivo **COMERCIAL**: se guarda como dato del colegio (agrupación «Por ejecutivo» en Rentabilidad); **no** asigna servicios |
+| Asesor Pedagógico | recomendada | nombre | el asesor que atiende los servicios: se casa con un asesor existente (sin acentos/caja) o **se crea**, y el colegio queda asignado a él → se propaga a su hoja y a su portal |
 | Años de Antigüedad | — | número | contexto |
 | Serie Preescolar/Primaria/Secundaria, Bachillerato | — | texto | serie por nivel |
 | Inglés Preescolar/Primaria/Secundaria/Bachillerato | — | texto | programa de inglés por nivel |
@@ -57,8 +58,8 @@ captura lo **real ex-post**, servicio por servicio, y lo contrasta con el
 - **Rentabilidad por colegio** = `valorReal − Σ costos`; % = margen / valor.
   Colegios sin Valor Real (p. ej. cupos simulados): acumulan costo pero quedan
   fuera del margen (se marcan «s/valor»).
-- **Agregados**: por gerencia, asesor, campaña y categoría (valor y margen solo
-  suman colegios con Valor Real; el costo suma todos).
+- **Agregados**: por gerencia, asesor (pedagógico), ejecutivo comercial, campaña
+  y categoría (valor y margen solo suman colegios con Valor Real; el costo suma todos).
 
 ### Hoja de la Responsable Logística
 

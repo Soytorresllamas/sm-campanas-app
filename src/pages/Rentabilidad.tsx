@@ -15,10 +15,11 @@ const mxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN',
 const fmt = (n: number | null | undefined): string => (n === null || n === undefined ? '—' : mxn.format(n))
 const PASO = 150 // filas de la hoja logística por tanda
 
-type Grupo = 'gerencia' | 'asesor' | 'campaign' | 'tier'
+type Grupo = 'gerencia' | 'asesor' | 'ejecutivo' | 'campaign' | 'tier'
 const GRUPOS: { key: Grupo; label: string }[] = [
   { key: 'gerencia', label: 'Por gerencia' },
   { key: 'asesor', label: 'Por asesor' },
+  { key: 'ejecutivo', label: 'Por ejecutivo' },   // ejecutivo comercial (dato de BI)
   { key: 'campaign', label: 'Por campaña' },
   { key: 'tier', label: 'Por categoría' },
 ]
@@ -83,6 +84,7 @@ export default function Rentabilidad() {
   const llaves: Record<Grupo, (c: Colegio) => string> = {
     gerencia: (c) => c.gerencia ?? '',
     asesor: (c) => nombreAsesor(c.asesorId),
+    ejecutivo: (c) => c.ejecutivo ?? '',
     campaign: (c) => c.campaign,
     tier: (c) => tierLabel(c.tier),
   }
@@ -163,7 +165,7 @@ export default function Rentabilidad() {
         <div className="panel">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
             <h3 style={{ margin: 0, flex: 1 }}>Agregado</h3>
-            <div className="seg" style={{ margin: 0, maxWidth: 440 }}>
+            <div className="seg" style={{ margin: 0, maxWidth: 560 }}>
               {GRUPOS.map((g) => (
                 <button key={g.key} className={grupo === g.key ? 'on' : ''} onClick={() => setGrupo(g.key)}>{g.label}</button>
               ))}
