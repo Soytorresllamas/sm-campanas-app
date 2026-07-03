@@ -324,7 +324,8 @@ export default function Planeacion() {
           </>)}
 
           {view === 'hoja' && (<>
-            <h2>Hoja de {targetName}</h2>
+            <h2 style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>Hoja de {targetName}
+              <a href="#/mi-hoja" style={{ fontSize: 11, fontWeight: 400 }} title="Cómo la vería el asesor (mockup con login propio)">Ver portal del asesor ↗</a></h2>
             {misColegios.length === 0 ? (
               <div className="hint">Este asesor no tiene colegios asignados. Ve a «Asignación» para darle cupos.</div>
             ) : (<>

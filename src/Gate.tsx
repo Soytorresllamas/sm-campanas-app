@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import logoSM from './assets/logo-sm.svg'
 
 // Gate ligero del lado del cliente (hash SHA-256). No es seguridad fuerte: al ser un sitio
@@ -14,13 +14,23 @@ async function sha256(text: string): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// El portal del asesor (#/mi-hoja) trae su propio login simulado: no pasa por el gate del comité.
+const esPortalAsesor = () => window.location.hash.startsWith('#/mi-hoja')
+
 export default function Gate({ children }: { children: ReactNode }) {
   const [ok, setOk] = useState(() => localStorage.getItem(FLAG) === '1')
+  const [portal, setPortal] = useState(esPortalAsesor)
   const [pw, setPw] = useState('')
   const [err, setErr] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  if (ok) return children
+  useEffect(() => {
+    const onHash = () => setPortal(esPortalAsesor())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  if (ok || portal) return children
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

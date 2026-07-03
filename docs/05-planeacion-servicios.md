@@ -127,6 +127,16 @@ El modelo ya queda listo para carga real de colegios:
    - **Revisión de usabilidad (jul 2026):** búsqueda por nombre + botón «× Limpiar» + estados vacíos con mensaje; **chips de avance por tipo** (Uso 1/3 · Prof 0/2 · Didác 0/1); notas de servicio **visibles inline** (itálicas, clic para editar; Enter/Esc/blur cierra); **Agenda agrupada por mes** («Octubre 2026»… «Sin fecha planeada» al final); badge **EXT** en didácticas (las ejecutan externos, el asesor coordina); fecha **Real solo en realizados**; desmarcar «hecho» **regresa a "agendado"** si hay fecha planeada; lista de asesores con mini-barra de avance y ⚠ de sobrecarga; fila de totales en Asignación; KPI «Próx. 7 días».
    - Helpers puros: `setServicio`, `renombrarColegio`, `patchColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`, `repartirColegios`.
    - ⏳ Uso en campo (móvil-first) queda para después. **Pendiente: cargar el catálogo real de `SERIES` e `INGLES`.**
+
+### Portal del asesor (mockup) — `#/mi-hoja`
+
+**Archivo:** `src/pages/HojaAsesor.tsx`. Simula el acceso individual de un asesor: **login propio** (selector de asesor + contraseña de utilería — cualquier contraseña entra) y **solo su hoja**, sin el nav ni las vistas del comité.
+
+- **Rutas y gate:** `App.tsx` oculta el header del comité en `/mi-hoja`; `Gate.tsx` deja pasar `#/mi-hoja` sin la contraseña del comité (el portal trae su propio login). ⚠️ Es un **mockup de UX**: la autenticación real (Supabase Auth + RLS por asesor) sigue siendo el punto #1 del roadmap — hoy cualquier persona con la URL entra.
+- **Sesión:** `sessionStorage` (`sm-asesor-sesion-v1`); botón «Salir». Mismos datos y guardado que Planeación (comparten `planeacionStore`).
+- **Módulos del dashboard:** KPIs (vencidos · próx. 7 días · por hacer · avance) · **Tu agenda próxima** (siguientes 6 servicios con fecha y botón «✓ Hecho») · **Requieren tu atención** (colegios con vencidos / sin agendar / satisfacción ≤ 2) · **Tu cartera** (SMART/CORE, carga vs capacidad personal, distribución de satisfacción) · **Mis colegios** (tarjetas de ejecución).
+- **Alcance del asesor:** edita **ejecución** (estatus, fechas, notas de servicio, satisfacción, notas generales). **No** edita estructura: no renombra colegios ni cambia serie/inglés (se muestran como texto) — eso es del coordinador.
+- Acceso desde la herramienta central: enlace «Ver portal del asesor ↗» en la Hoja del asesor de Planeación.
 3. ✅ **Resumen + reconciliación (hecha):** pestaña «Resumen» (a pantalla completa); KPIs de avance de lo asignado, tabla de avance por asesor (con barra y aviso de sobrecarga si su uso/prof supera su capacidad individual ≈ `tDay×dWeek×wMonth×12`), y **reconciliación**: uso/prof asignado a empleados vs. capacidad anual (`nAse×tDay×dWeek×wMonth×12`) con semáforo verde/aviso. Helper `avanceAsignado`; `cargaAsesor` ahora separa `usoProf`. La capacidad sale de `DEFAULTS` (consistente con la generación de cupos).
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.
 
