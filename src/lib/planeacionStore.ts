@@ -1,23 +1,33 @@
 import { supabase, PLANEACION_TABLE, PLANEACION_ROW } from './supabase';
-import type { PlaneacionData } from '../data/planeacion';
+import { LS_PLANEACION } from './localData';
+import type { PlaneacionData, Colegio } from '../data/planeacion';
 
-const LS_KEY = 'sm-planeacion-26-27-v1';
+// Versión del esquema local. Súbela cuando cambie la forma de PlaneacionData:
+// cualquier blob guardado con otra versión (o el formato viejo sin versión) se
+// descarta al cargar en vez de reventar el render.
+const SCHEMA_V = 2;
 
-const valid = (p: unknown): p is PlaneacionData =>
-  !!p && Array.isArray((p as PlaneacionData).asesores) && Array.isArray((p as PlaneacionData).colegios);
+// Validación estructural: no basta con que existan los arreglos; cada colegio
+// debe traer su lista de servicios (que la UI recorre sin defensas).
+const valid = (p: unknown): p is PlaneacionData => {
+  const d = p as PlaneacionData;
+  return !!d && Array.isArray(d.asesores) && Array.isArray(d.colegios)
+    && d.colegios.every((c) => !!c && typeof c === 'object' && Array.isArray((c as Colegio).servicios));
+};
 
 export const loadLocal = (): PlaneacionData | null => {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_PLANEACION);
     if (!raw) return null;
-    const p = JSON.parse(raw);
-    if (valid(p)) return p;
+    const parsed = JSON.parse(raw) as { v?: number; data?: unknown };
+    // Solo se acepta el formato versionado actual; lo demás se ignora.
+    if (parsed && parsed.v === SCHEMA_V && valid(parsed.data)) return parsed.data;
   } catch { /* noop */ }
   return null;
 };
 
 export const saveLocal = (data: PlaneacionData): void => {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch { /* noop */ }
+  try { localStorage.setItem(LS_PLANEACION, JSON.stringify({ v: SCHEMA_V, data })); } catch { /* noop */ }
 };
 
 export type LoadRemoteResult =

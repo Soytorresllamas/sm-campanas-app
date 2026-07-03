@@ -1,7 +1,6 @@
 import { supabase, GANTT_TABLE, GANTT_ROW } from './supabase';
+import { LS_GANTT as LS_KEY } from './localData';
 import type { Task } from '../features/gantt/types';
-
-const LS_KEY = 'sm-gantt-26-27-v1';
 
 export interface GanttData {
   tasks: Task[];
