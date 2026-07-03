@@ -3,7 +3,7 @@ import { DEFAULTS } from './model';
 import {
   serviciosDeTier, nColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
-  setServicio, renombrarColegio,
+  setServicio, renombrarColegio, avanceAsignado,
 } from './planeacion';
 
 const tierTop = { key: 'top' as const, label: 'Top', pct: 10, uso: 3, prof: 2, didac: 1 };
@@ -130,9 +130,28 @@ describe('asignar / resumen / cargaAsesor', () => {
     const carga = cargaAsesor(cols, 'ase-1');
     expect(carga.colegios).toBe(1);
     expect(carga.servicios).toBe(6);   // Top = 6 servicios
+    expect(carga.usoProf).toBe(5);     // 3 uso + 2 prof (didáctica no cuenta como empleado)
     expect(carga.realizados).toBe(1);
     // otro asesor no tiene nada
     expect(cargaAsesor(cols, 'ase-2').colegios).toBe(0);
+  });
+});
+
+describe('avanceAsignado', () => {
+  it('solo cuenta colegios asignados y separa uso/prof de didácticas', () => {
+    let cols = generateColegios(DEFAULTS.vSmart, DEFAULTS.tiersSmart, DEFAULTS.vCore, DEFAULTS.tiersCore);
+    expect(avanceAsignado(cols).colegios).toBe(0); // nada asignado aún
+    cols = asignarPorTipo(cols, 'SMART', 'top', 2, 'ase-1'); // 2 Top = 2×(3u+2p+1d)
+    const av = avanceAsignado(cols);
+    expect(av.colegios).toBe(2);
+    expect(av.servicios).toBe(12);
+    expect(av.usoProf).toBe(10);   // 2×5
+    expect(av.didac).toBe(2);      // 2×1
+    expect(av.realizados).toBe(0);
+    // marcar un servicio realizado se refleja
+    const top = cols.find((c) => c.asesorId === 'ase-1')!;
+    cols = setServicio(cols, top.id, 0, { estatus: 'realizado' });
+    expect(avanceAsignado(cols).realizados).toBe(1);
   });
 });
 

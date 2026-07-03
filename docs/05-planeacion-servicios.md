@@ -1,6 +1,6 @@
 # 05 · Planeación de servicios académicos (hojas de asesores)
 
-**Estado:** **Fases 1-2 implementadas** (generación + asignación + hoja del asesor con estatus/fechas), Fase 3 (resumen + reconciliación) pendiente (rama `nueva-logica`).
+**Estado:** **Fases 1-3 implementadas** (generación + asignación + hoja del asesor + resumen/reconciliación). Pendiente solo lo opcional: timeline tipo Gantt y carga CSV. (rama `nueva-logica`)
 **Archivos:** `src/data/planeacion.ts` (lógica pura + tipos) · `src/data/planeacion.test.ts` (pruebas) · `src/lib/planeacionStore.ts` (Supabase, tabla `sm_campanas_planeacion`) · `src/pages/Planeacion.tsx` (UI) · lee la matriz de tipos de `src/data/model.ts`.
 
 Es la capa **operativa** debajo del Simulador. El Simulador planea en **agregado** ("se necesitan X servicios en Y colegios, con esta capacidad"); esta hoja baja al **quién ejecuta**: a cada **asesor empleado** se le asignan colegios y él registra el avance servicio por servicio.
@@ -111,7 +111,7 @@ El modelo ya queda listo para carga real de colegios:
 
 1. ✅ **Generación + asignación (hecha):** tipos, store de Supabase, generación de cupos desde el Simulador, y **asignación por (campaña × tipo) en tandas** — como los cupos son anónimos e intercambiables dentro de un tipo, se asigna "N cupos de SMART-Top a un asesor" en vez de colegio por colegio (más usable y sigue siendo manual). Helpers `asignarPorTipo` / `liberarPorTipo` / `contarPorTipo`.
 2. ✅ **Hoja del asesor (hecha):** pestaña «Hoja del asesor»; tarjetas por colegio (nombre editable, campaña/tipo), cada una con su mini-tabla de servicios (estatus pendiente/agendado/realizado, fecha planeada/real) y barra de avance. Helpers `setServicio` / `renombrarColegio`. Barra de avance global del asesor.
-3. **Resumen + reconciliación (pendiente):** rollups por asesor/global y semáforo vs. capacidad.
+3. ✅ **Resumen + reconciliación (hecha):** pestaña «Resumen» (a pantalla completa); KPIs de avance de lo asignado, tabla de avance por asesor (con barra y aviso de sobrecarga si su uso/prof supera su capacidad individual ≈ `tDay×dWeek×wMonth×12`), y **reconciliación**: uso/prof asignado a empleados vs. capacidad anual (`nAse×tDay×dWeek×wMonth×12`) con semáforo verde/aviso. Helper `avanceAsignado`; `cargaAsesor` ahora separa `usoProf`. La capacidad sale de `DEFAULTS` (consistente con la generación de cupos).
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.
 
 Ruta `#/planeacion` con su `NavLink` en `src/App.tsx`. La tabla `sm_campanas_planeacion` está en `supabase_setup.sql`; mientras no se cree, la app **degrada a `localStorage`** ("Sin conexión · local").

@@ -3,7 +3,7 @@ import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
-  contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, ESTATUS,
+  contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, avanceAsignado, ESTATUS,
 } from '../data/planeacion'
 import type { PlaneacionData, Estatus, Servicio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
@@ -21,7 +21,7 @@ export default function Planeacion() {
   const [status, setStatus] = useState('Cargando…')
   const [targetSel, setTargetSel] = useState('')
   const [amounts, setAmounts] = useState<Record<string, number>>({})
-  const [view, setView] = useState<'asignacion' | 'hoja'>('asignacion')
+  const [view, setView] = useState<'asignacion' | 'hoja' | 'resumen'>('asignacion')
 
   // carga remota inicial: lo remoto gana si existe
   useEffect(() => {
@@ -71,6 +71,14 @@ export default function Planeacion() {
   const cargaT = cargaAsesor(data.colegios, target)
   const pctT = cargaT.servicios ? Math.round((cargaT.realizados / cargaT.servicios) * 100) : 0
 
+  // resumen / reconciliación (capacidad tomada de las semillas del Simulador, como los cupos)
+  const av = avanceAsignado(data.colegios)
+  const pctG = av.servicios ? Math.round((av.realizados / av.servicios) * 100) : 0
+  const capAnual = Math.round(DEFAULTS.nAse * DEFAULTS.tDay * DEFAULTS.dWeek * DEFAULTS.wMonth * 12)
+  const perAseCap = DEFAULTS.tDay * DEFAULTS.dWeek * DEFAULTS.wMonth * 12
+  const capOk = av.usoProf <= capAnual
+  const sinAsignarServ = data.colegios.reduce((s, c) => s + (c.asesorId ? 0 : c.servicios.length), 0)
+
   return (
     <div>
       <h1>Planeación de servicios · hojas de asesores</h1>
@@ -87,11 +95,61 @@ export default function Planeacion() {
         <button className="sec" onClick={regenerar}>Regenerar cupos</button>
       </div>
 
-      <div className="seg" style={{ maxWidth: 380, margin: '0 0 12px' }}>
+      <div className="seg" style={{ maxWidth: 520, margin: '0 0 12px' }}>
         <button className={view === 'asignacion' ? 'on' : ''} onClick={() => setView('asignacion')}>Asignación</button>
         <button className={view === 'hoja' ? 'on' : ''} onClick={() => setView('hoja')}>Hoja del asesor</button>
+        <button className={view === 'resumen' ? 'on' : ''} onClick={() => setView('resumen')}>Resumen</button>
       </div>
 
+      {view === 'resumen' && (<>
+        <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))' }}>
+          <div className="kpi"><div className="v">{av.colegios}</div><div className="l">Colegios asignados</div></div>
+          <div className="kpi good"><div className="v">{pctG}%</div><div className="l">Avance ({av.realizados}/{av.servicios} servicios)</div></div>
+          <div className="kpi warn"><div className="v">{av.servicios - av.realizados}</div><div className="l">Servicios pendientes</div></div>
+        </div>
+
+        <h2>Reconciliación con la capacidad de empleados</h2>
+        <div className={`kpi ${capOk ? 'good' : 'warn'}`} style={{ marginBottom: 10 }}>
+          <div className="v">{capOk ? '✓ Dentro de capacidad' : '⚠ Excede capacidad'}</div>
+          <div className="l">Uso/prof asignado a empleados: <b>{av.usoProf}</b> de <b>{capAnual}</b> de capacidad anual
+            ({DEFAULTS.nAse} asesores). {capOk ? 'Cabe en los empleados.' : 'El excedente tendría que irse a externos.'}</div>
+        </div>
+        <div className="hint">Los empleados solo cubren <b>uso/profundización</b>. Las <b>didácticas</b> de colegios asignados
+          ({av.didac}) y los <b>{sinAsignarServ}</b> servicios sin asignar los cubren <b>externos</b>. La capacidad sale de
+          las semillas del Simulador (asesores × servicios/día × días × semanas × 12 meses).</div>
+
+        <h2>Avance por asesor</h2>
+        <table>
+          <thead><tr><th>Asesor</th><th>Colegios</th><th>Servicios</th><th>Realizados</th><th>Avance</th><th>Uso/prof</th><th>Carga</th></tr></thead>
+          <tbody>
+            {data.asesores.map((a) => {
+              const c = cargaAsesor(data.colegios, a.id)
+              const pct = c.servicios ? Math.round((c.realizados / c.servicios) * 100) : 0
+              const over = c.usoProf > perAseCap
+              return (
+                <tr key={a.id}>
+                  <td>{a.nombre}</td><td>{c.colegios}</td><td>{c.servicios}</td><td>{c.realizados}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 6, background: '#EEF1F4', overflow: 'hidden', minWidth: 60 }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: '#2C8A7B' }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: '#646A75' }}>{pct}%</span>
+                    </div>
+                  </td>
+                  <td>{c.usoProf}</td>
+                  <td style={{ color: over ? '#B5841C' : '#646A75', fontWeight: over ? 600 : 400 }}>
+                    {over ? `⚠ ${Math.round(perAseCap)} máx` : 'ok'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div className="hint">«Carga» avisa si el uso/prof asignado a un asesor supera su capacidad anual individual (≈ {Math.round(perAseCap)} servicios).</div>
+      </>)}
+
+      {view !== 'resumen' && (
       <div className="cols">
         <div className="panel">
           <h3>Asesores</h3>
@@ -190,6 +248,7 @@ export default function Planeacion() {
           </>)}
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -130,13 +130,33 @@ export function renombrarColegio(colegios: Colegio[], id: string, nombre: string
   return colegios.map((c) => c.id === id ? { ...c, nombre } : c);
 }
 
-export interface Carga { colegios: number; servicios: number; realizados: number; }
+export interface Carga { colegios: number; servicios: number; realizados: number; usoProf: number; }
 export function cargaAsesor(colegios: Colegio[], asesorId: string): Carga {
-  let cols = 0, servicios = 0, realizados = 0;
+  let cols = 0, servicios = 0, realizados = 0, usoProf = 0;
   for (const c of colegios) {
     if (c.asesorId !== asesorId) continue;
-    cols++; servicios += c.servicios.length;
-    realizados += c.servicios.reduce((s, x) => s + (x.estatus === 'realizado' ? 1 : 0), 0);
+    cols++;
+    for (const s of c.servicios) {
+      servicios++;
+      if (s.estatus === 'realizado') realizados++;
+      if (s.tipo !== 'didac') usoProf++;   // didácticas las hacen externos aunque el colegio esté asignado
+    }
   }
-  return { colegios: cols, servicios, realizados };
+  return { colegios: cols, servicios, realizados, usoProf };
+}
+
+export interface Avance { colegios: number; servicios: number; realizados: number; usoProf: number; didac: number; }
+/** Avance agregado sobre los colegios ASIGNADOS (lo que ejecutan los empleados). */
+export function avanceAsignado(colegios: Colegio[]): Avance {
+  let cols = 0, servicios = 0, realizados = 0, usoProf = 0, didac = 0;
+  for (const c of colegios) {
+    if (!c.asesorId) continue;
+    cols++;
+    for (const s of c.servicios) {
+      servicios++;
+      if (s.estatus === 'realizado') realizados++;
+      if (s.tipo === 'didac') didac++; else usoProf++;
+    }
+  }
+  return { colegios: cols, servicios, realizados, usoProf, didac };
 }
