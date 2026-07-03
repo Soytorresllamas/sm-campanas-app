@@ -3,18 +3,15 @@ import { DEFAULTS, TIER_SEED } from '../data/model'
 import type { TierKey, Campaign } from '../data/model'
 import {
   defaultPlaneacion, generateColegios, asignarPorTipo, liberarPorTipo,
-  contarPorTipo, cargaAsesor, resumen, setServicio, renombrarColegio, patchColegio, avanceAsignado, ESTATUS,
+  contarPorTipo, cargaAsesor, resumen, setServicio, patchColegio, avanceAsignado, ESTATUS,
   hoyISO, urgencia, agendaAsesor, serviciosDeAsesor, SERIES, INGLES, SATISFACCION, PROBLEMAS, atenderAlerta,
 } from '../data/planeacion'
-import type { PlaneacionData, Estatus, Servicio, Urgencia, Colegio } from '../data/planeacion'
+import type { PlaneacionData, Estatus, Servicio, Colegio } from '../data/planeacion'
 import { loadLocal, saveLocal, loadRemote, saveRemote } from '../lib/planeacionStore'
+import { ColegioCard, ServLabel } from '../features/planeacion/ColegioCard'
+import { SMART, CORE, EST_COLOR, EST_LABEL, URG_BG, tierLabel } from '../features/planeacion/colors'
 
-const SMART = 'var(--smart)', CORE = 'var(--core)'
 const CAMPS: Campaign[] = ['SMART', 'CORE']
-const tierLabel = (k: TierKey) => TIER_SEED.find((t) => t.key === k)?.label ?? k
-const EST_COLOR: Record<Estatus, string> = { pendiente: 'var(--faint)', agendado: 'var(--gold)', realizado: 'var(--core)' }
-const EST_LABEL: Record<Estatus, string> = { pendiente: 'Pendiente', agendado: 'Agendado', realizado: 'Realizado' }
-const SERV_SHORT: Record<string, string> = { uso: 'Uso', prof: 'Prof.', didac: 'Didác.' }
 const MESES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 // clave de mes 'YYYY-MM' (o 'sin') → etiqueta para los encabezados de la agenda
 const mesLabel = (k: string) => k === 'sin' ? 'Sin fecha planeada' : `${MESES_L[parseInt(k.slice(5, 7), 10) - 1]} ${k.slice(0, 4)}`
@@ -76,8 +73,6 @@ export default function Planeacion() {
   }
   const setServ = (colegioId: string, idx: number, patch: Partial<Servicio>) =>
     setData((d) => ({ ...d, colegios: setServicio(d.colegios, colegioId, idx, patch) }))
-  const renombrar = (id: string, nombre: string) =>
-    setData((d) => ({ ...d, colegios: renombrarColegio(d.colegios, id, nombre) }))
   const patchCol = (id: string, patch: Partial<Colegio>) =>
     setData((d) => ({ ...d, colegios: patchColegio(d.colegios, id, patch) }))
 
@@ -110,8 +105,6 @@ export default function Planeacion() {
   const filtrosActivos = busca !== '' || fEstatus !== 'todos' || fCamp !== 'todos' || fTier !== 'todos' || fSerie !== 'todos' || fIngles !== 'todos' || fSat !== 'todos'
   const limpiarFiltros = () => { setBusca(''); setFEstatus('todos'); setFCamp('todos'); setFTier('todos'); setFSerie('todos'); setFIngles('todos'); setFSat('todos') }
   const toggleColapso = (id: string) => setColapsados((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  const URG_BG: Record<Urgencia, string | undefined> = { vencido: 'var(--gold-wash)', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
-  const URG_BADGE: Partial<Record<Urgencia, { t: string; c: string }>> = { vencido: { t: 'Vencido', c: '#B5841C' }, proximo: { t: 'Esta sem.', c: '#2563B0' } }
   const dateStyle = { fontSize: 10, padding: '2px 2px', width: 104, boxSizing: 'border-box' as const }
 
   // controles de un servicio (funciones que devuelven JSX; no son componentes con hooks)
@@ -139,16 +132,6 @@ export default function Planeacion() {
       ? <input type="date" aria-label="Fecha real" value={s.fechaReal ?? ''} onChange={(e) => setServ(colId, idx, { fechaReal: e.target.value || undefined })} style={dateStyle} />
       : <span style={{ color: '#B7BCC4' }}>—</span>
   )
-  // etiqueta del servicio: tipo + EXT (didácticas las ejecutan externos) + badge de urgencia
-  const servLabel = (s: Servicio, u: Urgencia) => {
-    const badge = URG_BADGE[u]
-    return (<>
-      {SERV_SHORT[s.tipo]}
-      {s.tipo === 'didac' && <span title="La ejecutan externos; el asesor la coordina y da seguimiento"
-        style={{ fontSize: 8.5, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 4, padding: '1px 4px', marginLeft: 4, verticalAlign: 'middle' }}>EXT</span>}
-      {badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}
-    </>)
-  }
   const btnNota = (colId: string, idx: number, s: Servicio) => {
     const key = colId + ':' + idx
     return <button title={s.nota ? 'Editar nota' : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
@@ -172,16 +155,6 @@ export default function Planeacion() {
     )
     return null
   }
-  // chips de avance por tipo de servicio (Uso 1/3 · Prof 0/2 · Didác 0/1)
-  const tipoChips = (servicios: Servicio[]) => (['uso', 'prof', 'didac'] as const).map((t) => {
-    const tot = servicios.filter((s) => s.tipo === t).length
-    if (!tot) return null
-    const done = servicios.filter((s) => s.tipo === t && s.estatus === 'realizado').length
-    const full = done === tot
-    return <span key={t} style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
-      background: full ? '#E3F1EC' : 'var(--track)', color: full ? '#1F6B5C' : 'var(--mut)' }}>{SERV_SHORT[t]} {done}/{tot}</span>
-  })
-
   // resumen / reconciliación (capacidad tomada de las semillas del Simulador, como los cupos)
   const av = avanceAsignado(data.colegios)
   const pctG = av.servicios ? Math.round((av.realizados / av.servicios) * 100) : 0
@@ -418,76 +391,14 @@ export default function Planeacion() {
                 )
                 return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 820px)', gap: 10 }}>
-                  {cards.map(({ c, visibles }) => {
-                    const done = c.servicios.filter((s) => s.estatus === 'realizado').length
-                    const total = c.servicios.length
-                    const abierto = !colapsados.has(c.id)
-                    return (
-                      <div key={c.id} className="panel" style={{ margin: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                          <button onClick={() => toggleColapso(c.id)} title={abierto ? 'Colapsar' : 'Expandir'}
-                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: 'var(--mut)', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
-                          <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
-                          <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)} title="Clic para renombrar"
-                            style={{ flex: 1, minWidth: 0, border: 'none', borderBottom: '1px dashed #D2D7DE', fontWeight: 600, fontSize: 13, background: 'transparent', padding: '0 0 1px' }} />
-                          {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
-                          <span style={{ fontSize: 11, color: 'var(--mut)', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
-                        </div>
-                        <div style={{ height: 5, borderRadius: 5, background: 'var(--track)', overflow: 'hidden', marginBottom: 4 }}>
-                          <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-                          {tipoChips(c.servicios)}
-                          <span style={{ fontSize: 10, color: 'var(--mut)' }}>· {done}/{total} realizados</span>
-                          {c.notasGenerales && !abierto && <span title={c.notasGenerales} style={{ fontSize: 10, color: 'var(--mut)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>“{c.notasGenerales}”</span>}
-                        </div>
-                        {abierto && (<>
-                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 8px', fontSize: 11, color: 'var(--mut)' }}>
-                            <label>Serie{' '}
-                              <select value={c.serie ?? ''} onChange={(e) => patchCol(c.id, { serie: e.target.value || undefined })} style={{ fontSize: 11, width: 'auto' }}>
-                                <option value="">—</option>{SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                            </label>
-                            <label>Inglés{' '}
-                              <select value={c.ingles ?? ''} onChange={(e) => patchCol(c.id, { ingles: e.target.value || undefined })} style={{ fontSize: 11, width: 'auto' }}>
-                                <option value="">—</option>{INGLES.map((s) => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                            </label>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>Satisfacción:
-                              {SATISFACCION.map((s) => (
-                                <button key={s.v} title={s.label} onClick={() => patchCol(c.id, { satisfaccion: c.satisfaccion === s.v ? undefined : s.v })}
-                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 1px', opacity: c.satisfaccion === s.v ? 1 : 0.3, filter: c.satisfaccion === s.v ? 'none' : 'grayscale(1)' }}>{s.emoji}</button>
-                              ))}
-                            </span>
-                          </div>
-                          <table style={{ fontSize: 11 }}>
-                            <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
-                            <tbody>
-                              {visibles.map(({ s, i }) => {
-                                const u = urgencia(s, hoy)
-                                return (
-                                  <Fragment key={i}>
-                                    <tr style={{ background: URG_BG[u] }}>
-                                      <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(c.id, i, s)}</td>
-                                      <td style={{ padding: '2px 4px' }}>{servLabel(s, u)}</td>
-                                      <td style={{ padding: '2px 4px' }}>{selEstatus(c.id, i, s)}</td>
-                                      <td style={{ padding: '2px 4px' }}>{inpPlan(c.id, i, s)}</td>
-                                      <td style={{ padding: '2px 4px' }}>{inpReal(c.id, i, s)}</td>
-                                      <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(c.id, i, s)}</td>
-                                    </tr>
-                                    {notaRow(c.id, i, s, 6)}
-                                  </Fragment>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                          <textarea value={c.notasGenerales ?? ''} placeholder="Notas generales del colegio…"
-                            onChange={(e) => patchCol(c.id, { notasGenerales: e.target.value || undefined })}
-                            style={{ width: '100%', fontSize: 12, padding: '4px 6px', marginTop: 8, boxSizing: 'border-box', minHeight: 42, resize: 'vertical' }} />
-                        </>)}
-                      </div>
-                    )
-                  })}
+                  {cards.map(({ c }) => (
+                    <ColegioCard key={c.id} editable c={c} hoy={hoy}
+                      abierto={!colapsados.has(c.id)}
+                      onToggle={() => toggleColapso(c.id)}
+                      onServ={(i, p) => setServ(c.id, i, p)}
+                      onPatch={(p) => patchCol(c.id, p)}
+                      servFilter={pasaServicio} />
+                  ))}
                 </div>
                 )
               })() : (
@@ -517,7 +428,7 @@ export default function Planeacion() {
                                 <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(r.colegioId, r.idx, r.servicio)}</td>
                                 <td style={{ padding: '2px 4px' }}>{r.colegioNombre}</td>
                                 <td style={{ padding: '2px 4px', color: r.campaign === 'SMART' ? SMART : CORE, whiteSpace: 'nowrap' }}>{r.campaign} · {tierLabel(r.tier)}</td>
-                                <td style={{ padding: '2px 4px' }}>{servLabel(r.servicio, u)}</td>
+                                <td style={{ padding: '2px 4px' }}><ServLabel s={r.servicio} u={u} /></td>
                                 <td style={{ padding: '2px 4px', minWidth: 110 }}>{selEstatus(r.colegioId, r.idx, r.servicio)}</td>
                                 <td style={{ padding: '2px 4px' }}>{inpPlan(r.colegioId, r.idx, r.servicio)}</td>
                                 <td style={{ padding: '2px 4px' }}>{inpReal(r.colegioId, r.idx, r.servicio)}</td>
