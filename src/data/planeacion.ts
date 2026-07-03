@@ -62,23 +62,38 @@ export function serviciosDeTier(tier: Tier): Servicio[] {
   return out;
 }
 
-/** # de colegios de un tipo en una campaña: total × (mezcla del tipo / Σ mezcla). */
-export function nColegios(vTotal: number, tier: Tier, tiers: Tier[]): number {
+/** Reparte vTotal colegios entre los tipos según su % de mezcla, con **restos mayores**:
+ *  los conteos SIEMPRE suman exactamente vTotal. (Math.round por tipo perdía/inventaba
+ *  colegios: SMART 321 daba 320 y CORE 1047 daba 1048.) Devuelve conteos alineados a `tiers`. */
+export function repartirColegios(vTotal: number, tiers: Tier[]): number[] {
+  const total = Math.round(vTotal);
   const sumPct = tiers.reduce((s, t) => s + t.pct, 0) || 1;
-  return Math.round(vTotal * (tier.pct / sumPct));
+  const exactos = tiers.map((t) => total * (t.pct / sumPct));
+  const out = exactos.map(Math.floor);
+  let falta = total - out.reduce((a, b) => a + b, 0);
+  // los sobrantes van a los restos más grandes (empates: primero en la lista)
+  const orden = exactos.map((e, i) => ({ i, resto: e - Math.floor(e) })).sort((a, b) => b.resto - a.resto || a.i - b.i);
+  for (let k = 0; falta > 0 && orden.length; k = (k + 1) % orden.length, falta--) out[orden[k].i]++;
+  return out;
+}
+
+/** # de colegios de un tipo en una campaña (consistente con repartirColegios). */
+export function nColegios(vTotal: number, tier: Tier, tiers: Tier[]): number {
+  const idx = tiers.findIndex((t) => t.key === tier.key);
+  return repartirColegios(vTotal, tiers)[Math.max(0, idx)];
 }
 
 /** Genera los cupos anónimos de ambas campañas con sus servicios congelados. */
 export function generateColegios(vSmart: number, tiersSmart: Tier[], vCore: number, tiersCore: Tier[]): Colegio[] {
   const out: Colegio[] = [];
   const gen = (camp: Campaign, vTotal: number, tiers: Tier[]) => {
-    for (const t of tiers) {
-      const count = nColegios(vTotal, t, tiers);
-      for (let i = 1; i <= count; i++) {
+    const counts = repartirColegios(vTotal, tiers);
+    tiers.forEach((t, ti) => {
+      for (let i = 1; i <= counts[ti]; i++) {
         const id = `${camp}-${t.key}-${String(i).padStart(3, '0')}`;
         out.push({ id, nombre: id, campaign: camp, tier: t.key, asesorId: null, servicios: serviciosDeTier(t) });
       }
-    }
+    });
   };
   gen('SMART', vSmart, tiersSmart);
   gen('CORE', vCore, tiersCore);

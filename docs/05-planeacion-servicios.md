@@ -71,6 +71,7 @@ El "criterio de volumen y segmentación" **no se captura a mano**. Cuando se gen
 
 Los conteos del Simulador dan **~1,368 cupos** (321 SMART + 1,047 CORE, repartidos por la mezcla % de cada tipo). Renderizar eso como tarjetas es inviable. Estrategia:
 
+- Los conteos por tipo usan **restos mayores** (`repartirColegios`): siempre suman exactamente el total de la campaña. ⚠️ No regreses a `Math.round` por tipo — perdía/inventaba colegios (SMART 321→320, CORE 1047→1048); hay prueba de regresión.
 - El **pool** de colegios sin asignar se muestra como **lista compacta filtrable** (campaña + tipo), nunca como 1,368 tarjetas.
 - Las **tarjetas** (pesadas) se renderizan **solo para el asesor seleccionado**.
 - Generar es idempotente por `id`: regenerar respeta asignaciones/estatus existentes por `id` cuando sea posible.
@@ -123,7 +124,8 @@ El modelo ya queda listo para carga real de colegios:
    - **Filtros** por estatus (incl. «vencidos»), campaña y tipo.
    - Cada servicio: **checkbox «hecho»** (marca realizado y pone la fecha de hoy automáticamente), estatus, fecha planeada y **fecha real contextual** (oculta si está pendiente), badge/fondo **ámbar** para vencidos, e ✎ **nota** por servicio.
    - Tarjetas a **una sola columna** (evitan el desborde al aparecer la fecha real). Cada tarjeta trae metadatos del colegio: **Serie**, **Inglés**, **Satisfacción** (caritas) y **Notas generales**. Los filtros incluyen también serie / inglés / satisfacción.
-   - Helpers puros: `setServicio`, `renombrarColegio`, `patchColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`.
+   - **Revisión de usabilidad (jul 2026):** búsqueda por nombre + botón «× Limpiar» + estados vacíos con mensaje; **chips de avance por tipo** (Uso 1/3 · Prof 0/2 · Didác 0/1); notas de servicio **visibles inline** (itálicas, clic para editar; Enter/Esc/blur cierra); **Agenda agrupada por mes** («Octubre 2026»… «Sin fecha planeada» al final); badge **EXT** en didácticas (las ejecutan externos, el asesor coordina); fecha **Real solo en realizados**; desmarcar «hecho» **regresa a "agendado"** si hay fecha planeada; lista de asesores con mini-barra de avance y ⚠ de sobrecarga; fila de totales en Asignación; KPI «Próx. 7 días».
+   - Helpers puros: `setServicio`, `renombrarColegio`, `patchColegio`, `hoyISO`, `sumarDias`, `urgencia`, `agendaAsesor`, `serviciosDeAsesor`, `repartirColegios`.
    - ⏳ Uso en campo (móvil-first) queda para después. **Pendiente: cargar el catálogo real de `SERIES` e `INGLES`.**
 3. ✅ **Resumen + reconciliación (hecha):** pestaña «Resumen» (a pantalla completa); KPIs de avance de lo asignado, tabla de avance por asesor (con barra y aviso de sobrecarga si su uso/prof supera su capacidad individual ≈ `tDay×dWeek×wMonth×12`), y **reconciliación**: uso/prof asignado a empleados vs. capacidad anual (`nAse×tDay×dWeek×wMonth×12`) con semáforo verde/aviso. Helper `avanceAsignado`; `cargaAsesor` ahora separa `usoProf`. La capacidad sale de `DEFAULTS` (consistente con la generación de cupos).
 4. *(Después)* línea de tiempo tipo Gantt y **carga CSV**.

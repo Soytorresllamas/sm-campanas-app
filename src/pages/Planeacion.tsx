@@ -15,6 +15,9 @@ const tierLabel = (k: TierKey) => TIER_SEED.find((t) => t.key === k)?.label ?? k
 const EST_COLOR: Record<Estatus, string> = { pendiente: '#9AA1AC', agendado: '#B5841C', realizado: '#2C8A7B' }
 const EST_LABEL: Record<Estatus, string> = { pendiente: 'Pendiente', agendado: 'Agendado', realizado: 'Realizado' }
 const SERV_SHORT: Record<string, string> = { uso: 'Uso', prof: 'Prof.', didac: 'Didác.' }
+const MESES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+// clave de mes 'YYYY-MM' (o 'sin') → etiqueta para los encabezados de la agenda
+const mesLabel = (k: string) => k === 'sin' ? 'Sin fecha planeada' : `${MESES_L[parseInt(k.slice(5, 7), 10) - 1]} ${k.slice(0, 4)}`
 
 export default function Planeacion() {
   const [data, setData] = useState<PlaneacionData>(() => loadLocal() ?? defaultPlaneacion())
@@ -30,6 +33,7 @@ export default function Planeacion() {
   const [fSerie, setFSerie] = useState<string>('todos')
   const [fIngles, setFIngles] = useState<string>('todos')
   const [fSat, setFSat] = useState<string>('todos')
+  const [busca, setBusca] = useState('')
   const [colapsados, setColapsados] = useState<Set<string>>(new Set())
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null)
 
@@ -86,7 +90,8 @@ export default function Planeacion() {
   // agenda / filtros de la hoja
   const hoy = hoyISO()
   const ag = agendaAsesor(data.colegios, target, hoy)
-  const filtroColegio = (campaign: Campaign, tier: TierKey, serie?: string, ingles?: string, satisfaccion?: number): boolean => {
+  const filtroColegio = (nombre: string, campaign: Campaign, tier: TierKey, serie?: string, ingles?: string, satisfaccion?: number): boolean => {
+    if (busca && !nombre.toLowerCase().includes(busca.toLowerCase())) return false
     if (fCamp !== 'todos' && campaign !== fCamp) return false
     if (fTier !== 'todos' && tier !== fTier) return false
     if (fSerie !== 'todos' && (serie ?? '') !== fSerie) return false
@@ -102,6 +107,8 @@ export default function Planeacion() {
     if (fEstatus === 'vencidos') return urgencia(s, hoy) === 'vencido'
     return s.estatus === fEstatus
   }
+  const filtrosActivos = busca !== '' || fEstatus !== 'todos' || fCamp !== 'todos' || fTier !== 'todos' || fSerie !== 'todos' || fIngles !== 'todos' || fSat !== 'todos'
+  const limpiarFiltros = () => { setBusca(''); setFEstatus('todos'); setFCamp('todos'); setFTier('todos'); setFSerie('todos'); setFIngles('todos'); setFSat('todos') }
   const toggleColapso = (id: string) => setColapsados((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const URG_BG: Record<Urgencia, string | undefined> = { vencido: '#FBF3E6', proximo: undefined, realizado: undefined, agendado: undefined, sinfecha: undefined }
   const URG_BADGE: Partial<Record<Urgencia, { t: string; c: string }>> = { vencido: { t: 'Vencido', c: '#B5841C' }, proximo: { t: 'Esta sem.', c: '#2563B0' } }
@@ -109,41 +116,71 @@ export default function Planeacion() {
 
   // controles de un servicio (funciones que devuelven JSX; no son componentes con hooks)
   const chkHecho = (colId: string, idx: number, s: Servicio) => (
-    <input type="checkbox" checked={s.estatus === 'realizado'} title="Marcar realizado (pone la fecha de hoy)"
+    <input type="checkbox" checked={s.estatus === 'realizado'} aria-label="Marcar realizado"
+      title="Marcar realizado (pone la fecha de hoy)"
       onChange={(e) => e.target.checked
         ? setServ(colId, idx, { estatus: 'realizado', fechaReal: s.fechaReal ?? hoy })
-        : setServ(colId, idx, { estatus: 'pendiente', fechaReal: undefined })} />
+        // al desmarcar conserva la intención: si tenía fecha planeada, vuelve a "agendado"
+        : setServ(colId, idx, { estatus: s.fechaPlan ? 'agendado' : 'pendiente', fechaReal: undefined })} />
   )
   const selEstatus = (colId: string, idx: number, s: Servicio) => (
-    <select value={s.estatus}
+    <select value={s.estatus} aria-label="Estatus del servicio"
       onChange={(e) => { const est = e.target.value as Estatus; setServ(colId, idx, est === 'realizado' && !s.fechaReal ? { estatus: est, fechaReal: hoy } : { estatus: est }) }}
       style={{ borderLeft: `3px solid ${EST_COLOR[s.estatus]}`, fontSize: 11, padding: '2px 3px', minWidth: 96, width: '100%' }}>
       {ESTATUS.map((e) => <option key={e} value={e}>{EST_LABEL[e]}</option>)}
     </select>
   )
   const inpPlan = (colId: string, idx: number, s: Servicio) => (
-    <input type="date" value={s.fechaPlan ?? ''} onChange={(e) => setServ(colId, idx, { fechaPlan: e.target.value || undefined })} style={dateStyle} />
+    <input type="date" aria-label="Fecha planeada" value={s.fechaPlan ?? ''} onChange={(e) => setServ(colId, idx, { fechaPlan: e.target.value || undefined })} style={dateStyle} />
   )
+  // la fecha real solo existe cuando el servicio está realizado
   const inpReal = (colId: string, idx: number, s: Servicio) => (
-    s.estatus === 'pendiente'
-      ? <span style={{ color: '#B7BCC4' }}>—</span>
-      : <input type="date" value={s.fechaReal ?? ''} onChange={(e) => setServ(colId, idx, { fechaReal: e.target.value || undefined })} style={dateStyle} />
+    s.estatus === 'realizado'
+      ? <input type="date" aria-label="Fecha real" value={s.fechaReal ?? ''} onChange={(e) => setServ(colId, idx, { fechaReal: e.target.value || undefined })} style={dateStyle} />
+      : <span style={{ color: '#B7BCC4' }}>—</span>
   )
+  // etiqueta del servicio: tipo + EXT (didácticas las ejecutan externos) + badge de urgencia
+  const servLabel = (s: Servicio, u: Urgencia) => {
+    const badge = URG_BADGE[u]
+    return (<>
+      {SERV_SHORT[s.tipo]}
+      {s.tipo === 'didac' && <span title="La ejecutan externos; el asesor la coordina y da seguimiento"
+        style={{ fontSize: 8.5, fontWeight: 700, color: '#8A6D1C', background: '#F6EBCB', borderRadius: 4, padding: '1px 4px', marginLeft: 4, verticalAlign: 'middle' }}>EXT</span>}
+      {badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}
+    </>)
+  }
   const btnNota = (colId: string, idx: number, s: Servicio) => {
     const key = colId + ':' + idx
-    return <button title={s.nota ? s.nota : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
+    return <button title={s.nota ? 'Editar nota' : 'Agregar nota'} onClick={() => setNotaAbierta((k) => k === key ? null : key)}
       style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, opacity: s.nota ? 1 : 0.4 }}>✎</button>
   }
-  const inpNota = (colId: string, idx: number, s: Servicio, cols: number) => {
+  // nota: editable al abrir con ✎; si existe, siempre visible en itálicas (clic para editar)
+  const notaRow = (colId: string, idx: number, s: Servicio, cols: number) => {
     const key = colId + ':' + idx
-    if (notaAbierta !== key) return null
-    return (
+    if (notaAbierta === key) return (
       <tr><td colSpan={cols} style={{ padding: '2px 4px' }}>
-        <input value={s.nota ?? ''} autoFocus placeholder="Nota…" onChange={(e) => setServ(colId, idx, { nota: e.target.value || undefined })}
+        <input value={s.nota ?? ''} autoFocus placeholder="Nota…"
+          onChange={(e) => setServ(colId, idx, { nota: e.target.value || undefined })}
+          onBlur={() => setNotaAbierta(null)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setNotaAbierta(null) }}
           style={{ width: '100%', fontSize: 11, padding: '3px 4px', boxSizing: 'border-box' }} />
       </td></tr>
     )
+    if (s.nota) return (
+      <tr><td /><td colSpan={cols - 1} onClick={() => setNotaAbierta(key)} title="Clic para editar"
+        style={{ padding: '0 4px 3px', fontSize: 10, color: '#8A8F99', fontStyle: 'italic', cursor: 'pointer' }}>“{s.nota}”</td></tr>
+    )
+    return null
   }
+  // chips de avance por tipo de servicio (Uso 1/3 · Prof 0/2 · Didác 0/1)
+  const tipoChips = (servicios: Servicio[]) => (['uso', 'prof', 'didac'] as const).map((t) => {
+    const tot = servicios.filter((s) => s.tipo === t).length
+    if (!tot) return null
+    const done = servicios.filter((s) => s.tipo === t && s.estatus === 'realizado').length
+    const full = done === tot
+    return <span key={t} style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
+      background: full ? '#E3F1EC' : '#EEF1F4', color: full ? '#1F6B5C' : '#646A75' }}>{SERV_SHORT[t]} {done}/{tot}</span>
+  })
 
   // resumen / reconciliación (capacidad tomada de las semillas del Simulador, como los cupos)
   const av = avanceAsignado(data.colegios)
@@ -230,13 +267,22 @@ export default function Planeacion() {
           {data.asesores.map((a) => {
             const c = cargaAsesor(data.colegios, a.id)
             const on = a.id === target
+            const pct = c.servicios ? Math.round((c.realizados / c.servicios) * 100) : 0
+            const sobre = c.usoProf > perAseCap
             return (
               <button key={a.id} onClick={() => setTargetSel(a.id)}
-                style={{ display: 'flex', justifyContent: 'space-between', gap: 8, width: '100%', textAlign: 'left',
+                style={{ display: 'block', width: '100%', textAlign: 'left',
                   padding: '6px 8px', marginBottom: 4, borderRadius: 8, cursor: 'pointer',
                   border: on ? `2px solid ${SMART}` : '1px solid #E3E6EB', background: on ? '#F3F7FC' : '#fff' }}>
-                <span style={{ fontWeight: on ? 600 : 400 }}>{a.nombre}</span>
-                <span style={{ color: '#646A75', fontSize: 12 }}>{c.colegios} col · {c.servicios} serv</span>
+                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: on ? 600 : 400 }}>{a.nombre}{sobre && <span title={`Sobrecarga: ${c.usoProf} uso/prof > ${Math.round(perAseCap)} de capacidad anual`} style={{ marginLeft: 4 }}>⚠</span>}</span>
+                  <span style={{ color: '#646A75', fontSize: 12, whiteSpace: 'nowrap' }}>{c.colegios} col · {c.servicios} serv</span>
+                </span>
+                {c.servicios > 0 && (
+                  <span style={{ display: 'block', height: 3, borderRadius: 3, background: '#EEF1F4', marginTop: 5, overflow: 'hidden' }}>
+                    <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: EST_COLOR.realizado }} />
+                  </span>
+                )}
               </button>
             )
           })}
@@ -266,6 +312,12 @@ export default function Planeacion() {
                     </tr>
                   )
                 }))}
+                <tr className="total">
+                  <td>Total</td><td></td>
+                  <td>{res.sinAsignar}</td>
+                  <td>{cargaT.colegios}</td>
+                  <td colSpan={2}></td>
+                </tr>
               </tbody>
             </table>
             <div className="hint">Asigna en tandas: escribe la cantidad y pulsa «Asignar». Lo que no asignes lo cubren externos.</div>
@@ -278,7 +330,7 @@ export default function Planeacion() {
             ) : (<>
               <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', marginBottom: 8 }}>
                 <div className={`kpi ${ag.vencidos > 0 ? 'warn' : ''}`}><div className="v">{ag.vencidos}</div><div className="l">Vencidos</div></div>
-                <div className="kpi"><div className="v">{ag.estaSemana}</div><div className="l">Esta semana</div></div>
+                <div className="kpi"><div className="v">{ag.estaSemana}</div><div className="l">Próx. 7 días</div></div>
                 <div className="kpi"><div className="v">{ag.porHacer}</div><div className="l">Por hacer</div></div>
                 <div className="kpi good"><div className="v">{pctT}%</div><div className="l">Avance ({cargaT.realizados}/{cargaT.servicios})</div></div>
               </div>
@@ -291,6 +343,8 @@ export default function Planeacion() {
                   <button className={hojaView === 'colegio' ? 'on' : ''} onClick={() => setHojaView('colegio')}>Por colegio</button>
                   <button className={hojaView === 'agenda' ? 'on' : ''} onClick={() => setHojaView('agenda')}>Agenda</button>
                 </div>
+                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="🔍 Buscar colegio…"
+                  aria-label="Buscar colegio por nombre" style={{ width: 160, fontSize: 12, padding: '5px 8px' }} />
                 <select value={fEstatus} onChange={(e) => setFEstatus(e.target.value as typeof fEstatus)} style={{ width: 'auto' }}>
                   <option value="todos">Todos los estatus</option>
                   <option value="pendiente">Pendientes</option>
@@ -320,6 +374,9 @@ export default function Planeacion() {
                   {SATISFACCION.map((s) => <option key={s.v} value={String(s.v)}>{s.emoji} {s.label}</option>)}
                   <option value="sin">Sin calificar</option>
                 </select>
+                {filtrosActivos && (
+                  <button className="sec" onClick={limpiarFiltros} title="Quitar búsqueda y filtros">× Limpiar</button>
+                )}
                 {hojaView === 'colegio' && (
                   <button className="sec" onClick={() => setColapsados((p) => p.size ? new Set() : new Set(misColegios.map((c) => c.id)))}>
                     {colapsados.size ? 'Expandir todo' : 'Colapsar todo'}
@@ -327,11 +384,17 @@ export default function Planeacion() {
                 )}
               </div>
 
-              {hojaView === 'colegio' ? (
+              {hojaView === 'colegio' ? (() => {
+                const cards = misColegios
+                  .filter((c) => filtroColegio(c.nombre, c.campaign, c.tier, c.serie, c.ingles, c.satisfaccion))
+                  .map((c) => ({ c, visibles: c.servicios.map((s, i) => ({ s, i })).filter(({ s }) => pasaServicio(s)) }))
+                  .filter((x) => x.visibles.length > 0)
+                if (cards.length === 0) return (
+                  <div className="hint">Ningún colegio coincide con la búsqueda o los filtros.{filtrosActivos && <> <button className="sec" onClick={limpiarFiltros}>Limpiar filtros</button></>}</div>
+                )
+                return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 820px)', gap: 10 }}>
-                  {misColegios.filter((c) => filtroColegio(c.campaign, c.tier, c.serie, c.ingles, c.satisfaccion)).map((c) => {
-                    const visibles = c.servicios.map((s, i) => ({ s, i })).filter(({ s }) => pasaServicio(s))
-                    if (visibles.length === 0) return null
+                  {cards.map(({ c, visibles }) => {
                     const done = c.servicios.filter((s) => s.estatus === 'realizado').length
                     const total = c.servicios.length
                     const abierto = !colapsados.has(c.id)
@@ -341,24 +404,28 @@ export default function Planeacion() {
                           <button onClick={() => toggleColapso(c.id)} title={abierto ? 'Colapsar' : 'Expandir'}
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, color: '#646A75', padding: 0, width: 14 }}>{abierto ? '▾' : '▸'}</button>
                           <span style={{ width: 9, height: 9, borderRadius: 9, flex: '0 0 auto', background: c.campaign === 'SMART' ? SMART : CORE }} />
-                          <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)}
-                            style={{ flex: 1, minWidth: 0, border: 'none', fontWeight: 600, fontSize: 13, background: 'transparent', padding: 0 }} />
+                          <input value={c.nombre} onChange={(e) => renombrar(c.id, e.target.value)} title="Clic para renombrar"
+                            style={{ flex: 1, minWidth: 0, border: 'none', borderBottom: '1px dashed #D2D7DE', fontWeight: 600, fontSize: 13, background: 'transparent', padding: '0 0 1px' }} />
                           {c.satisfaccion ? <span title={SATISFACCION.find((s) => s.v === c.satisfaccion)?.label} style={{ fontSize: 15 }}>{SATISFACCION.find((s) => s.v === c.satisfaccion)?.emoji}</span> : null}
                           <span style={{ fontSize: 11, color: '#646A75', flex: '0 0 auto' }}>{c.campaign} · {tierLabel(c.tier)}</span>
                         </div>
-                        <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 2 }}>
+                        <div style={{ height: 5, borderRadius: 5, background: '#EEF1F4', overflow: 'hidden', marginBottom: 4 }}>
                           <div style={{ height: '100%', width: total ? `${(done / total) * 100}%` : '0%', background: EST_COLOR.realizado }} />
                         </div>
-                        <div style={{ fontSize: 10, color: '#646A75', marginBottom: 4 }}>{done}/{total} realizados</div>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                          {tipoChips(c.servicios)}
+                          <span style={{ fontSize: 10, color: '#646A75' }}>· {done}/{total} realizados</span>
+                          {c.notasGenerales && !abierto && <span title={c.notasGenerales} style={{ fontSize: 10, color: '#8A8F99', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>“{c.notasGenerales}”</span>}
+                        </div>
                         {abierto && (<>
                           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', margin: '6px 0 8px', fontSize: 11, color: '#646A75' }}>
                             <label>Serie{' '}
-                              <select value={c.serie ?? ''} onChange={(e) => patchCol(c.id, { serie: e.target.value || undefined })} style={{ fontSize: 11 }}>
+                              <select value={c.serie ?? ''} onChange={(e) => patchCol(c.id, { serie: e.target.value || undefined })} style={{ fontSize: 11, width: 'auto' }}>
                                 <option value="">—</option>{SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
                             </label>
                             <label>Inglés{' '}
-                              <select value={c.ingles ?? ''} onChange={(e) => patchCol(c.id, { ingles: e.target.value || undefined })} style={{ fontSize: 11 }}>
+                              <select value={c.ingles ?? ''} onChange={(e) => patchCol(c.id, { ingles: e.target.value || undefined })} style={{ fontSize: 11, width: 'auto' }}>
                                 <option value="">—</option>{INGLES.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
                             </label>
@@ -373,18 +440,18 @@ export default function Planeacion() {
                             <thead><tr><th style={{ width: 20 }}></th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 20 }}></th></tr></thead>
                             <tbody>
                               {visibles.map(({ s, i }) => {
-                                const u = urgencia(s, hoy); const badge = URG_BADGE[u]
+                                const u = urgencia(s, hoy)
                                 return (
                                   <Fragment key={i}>
                                     <tr style={{ background: URG_BG[u] }}>
                                       <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(c.id, i, s)}</td>
-                                      <td style={{ padding: '2px 4px' }}>{SERV_SHORT[s.tipo]}{badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}</td>
+                                      <td style={{ padding: '2px 4px' }}>{servLabel(s, u)}</td>
                                       <td style={{ padding: '2px 4px' }}>{selEstatus(c.id, i, s)}</td>
                                       <td style={{ padding: '2px 4px' }}>{inpPlan(c.id, i, s)}</td>
                                       <td style={{ padding: '2px 4px' }}>{inpReal(c.id, i, s)}</td>
                                       <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(c.id, i, s)}</td>
                                     </tr>
-                                    {inpNota(c.id, i, s, 6)}
+                                    {notaRow(c.id, i, s, 6)}
                                   </Fragment>
                                 )
                               })}
@@ -398,33 +465,48 @@ export default function Planeacion() {
                     )
                   })}
                 </div>
-              ) : (
-                <table>
-                  <thead><tr><th style={{ width: 24 }}></th><th>Colegio</th><th>Campaña</th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 24 }}></th></tr></thead>
-                  <tbody>
-                    {serviciosDeAsesor(data.colegios, target)
-                      .filter((r) => filtroColegio(r.campaign, r.tier, r.serie, r.ingles, r.satisfaccion) && pasaServicio(r.servicio))
-                      .sort((a, b) => (a.servicio.fechaPlan ?? '9999').localeCompare(b.servicio.fechaPlan ?? '9999'))
-                      .map((r) => {
-                        const u = urgencia(r.servicio, hoy); const badge = URG_BADGE[u]
-                        return (
-                          <Fragment key={r.colegioId + ':' + r.idx}>
-                            <tr style={{ background: URG_BG[u] }}>
-                              <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(r.colegioId, r.idx, r.servicio)}</td>
-                              <td style={{ padding: '2px 4px' }}>{r.colegioNombre}</td>
-                              <td style={{ padding: '2px 4px', color: r.campaign === 'SMART' ? SMART : CORE, whiteSpace: 'nowrap' }}>{r.campaign} · {tierLabel(r.tier)}</td>
-                              <td style={{ padding: '2px 4px' }}>{SERV_SHORT[r.servicio.tipo]}{badge && <span style={{ color: badge.c, fontSize: 9, marginLeft: 3 }}>· {badge.t}</span>}</td>
-                              <td style={{ padding: '2px 4px', minWidth: 110 }}>{selEstatus(r.colegioId, r.idx, r.servicio)}</td>
-                              <td style={{ padding: '2px 4px' }}>{inpPlan(r.colegioId, r.idx, r.servicio)}</td>
-                              <td style={{ padding: '2px 4px' }}>{inpReal(r.colegioId, r.idx, r.servicio)}</td>
-                              <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(r.colegioId, r.idx, r.servicio)}</td>
-                            </tr>
-                            {inpNota(r.colegioId, r.idx, r.servicio, 8)}
-                          </Fragment>
-                        )
-                      })}
-                  </tbody>
-                </table>
+                )
+              })() : (
+                (() => {
+                  const lista = serviciosDeAsesor(data.colegios, target)
+                    .filter((r) => filtroColegio(r.colegioNombre, r.campaign, r.tier, r.serie, r.ingles, r.satisfaccion) && pasaServicio(r.servicio))
+                    .sort((a, b) => (a.servicio.fechaPlan ?? '9999').localeCompare(b.servicio.fechaPlan ?? '9999'))
+                  if (lista.length === 0) return (
+                    <div className="hint">Ningún servicio coincide con la búsqueda o los filtros.{filtrosActivos && <> <button className="sec" onClick={limpiarFiltros}>Limpiar filtros</button></>}</div>
+                  )
+                  let mesPrevio = ''
+                  return (
+                    <table>
+                      <thead><tr><th style={{ width: 24 }}></th><th>Colegio</th><th>Campaña</th><th>Servicio</th><th>Estatus</th><th>Planeada</th><th>Real</th><th style={{ width: 24 }}></th></tr></thead>
+                      <tbody>
+                        {lista.map((r) => {
+                          const u = urgencia(r.servicio, hoy)
+                          const mesKey = r.servicio.fechaPlan ? r.servicio.fechaPlan.slice(0, 7) : 'sin'
+                          const header = mesKey !== mesPrevio
+                            ? <tr key={'mes-' + mesKey}><td colSpan={8} style={{ background: '#F0F2F5', fontWeight: 700, fontSize: 10.5, color: '#4A4F58', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{mesLabel(mesKey)}</td></tr>
+                            : null
+                          mesPrevio = mesKey
+                          return (
+                            <Fragment key={r.colegioId + ':' + r.idx}>
+                              {header}
+                              <tr style={{ background: URG_BG[u] }}>
+                                <td style={{ padding: '2px 4px', textAlign: 'center' }}>{chkHecho(r.colegioId, r.idx, r.servicio)}</td>
+                                <td style={{ padding: '2px 4px' }}>{r.colegioNombre}</td>
+                                <td style={{ padding: '2px 4px', color: r.campaign === 'SMART' ? SMART : CORE, whiteSpace: 'nowrap' }}>{r.campaign} · {tierLabel(r.tier)}</td>
+                                <td style={{ padding: '2px 4px' }}>{servLabel(r.servicio, u)}</td>
+                                <td style={{ padding: '2px 4px', minWidth: 110 }}>{selEstatus(r.colegioId, r.idx, r.servicio)}</td>
+                                <td style={{ padding: '2px 4px' }}>{inpPlan(r.colegioId, r.idx, r.servicio)}</td>
+                                <td style={{ padding: '2px 4px' }}>{inpReal(r.colegioId, r.idx, r.servicio)}</td>
+                                <td style={{ padding: '2px 4px', textAlign: 'center' }}>{btnNota(r.colegioId, r.idx, r.servicio)}</td>
+                              </tr>
+                              {notaRow(r.colegioId, r.idx, r.servicio, 8)}
+                            </Fragment>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                })()
               )}
             </>)}
           </>)}

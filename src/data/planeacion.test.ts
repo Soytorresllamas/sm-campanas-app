@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULTS } from './model';
 import {
-  serviciosDeTier, nColegios, generateColegios, defaultAsesores, defaultPlaneacion,
+  serviciosDeTier, nColegios, repartirColegios, generateColegios, defaultAsesores, defaultPlaneacion,
   asignar, resumen, cargaAsesor, asignarPorTipo, liberarPorTipo, contarPorTipo,
   setServicio, renombrarColegio, avanceAsignado, patchColegio,
   hoyISO, sumarDias, urgencia, agendaAsesor, serviciosDeAsesor,
@@ -26,10 +26,26 @@ describe('serviciosDeTier', () => {
   });
 });
 
-describe('nColegios', () => {
-  it('= total × mezcla / Σ mezcla (redondeado)', () => {
-    expect(nColegios(321, DEFAULTS.tiersSmart[0], DEFAULTS.tiersSmart)).toBe(Math.round(321 * 0.10)); // Top 10% → 32
-    expect(nColegios(1047, DEFAULTS.tiersCore[1], DEFAULTS.tiersCore)).toBe(Math.round(1047 * 0.25)); // Alto 25% → 262
+describe('nColegios / repartirColegios', () => {
+  it('reparte según la mezcla', () => {
+    expect(nColegios(321, DEFAULTS.tiersSmart[0], DEFAULTS.tiersSmart)).toBe(32);   // Top 10%
+    expect(nColegios(1047, DEFAULTS.tiersCore[1], DEFAULTS.tiersCore)).toBe(262);   // Alto 25%
+  });
+
+  it('los conteos suman EXACTAMENTE el total (regresión: Math.round daba 320 y 1048)', () => {
+    expect(repartirColegios(321, DEFAULTS.tiersSmart).reduce((a, b) => a + b, 0)).toBe(321);
+    expect(repartirColegios(1047, DEFAULTS.tiersCore).reduce((a, b) => a + b, 0)).toBe(1047);
+  });
+
+  it('los sobrantes van a los restos mayores (SMART medio 128.4 → 129)', () => {
+    expect(repartirColegios(321, DEFAULTS.tiersSmart)).toEqual([32, 80, 129, 80]);
+  });
+
+  it('generateColegios genera exactamente vSmart + vCore cupos', () => {
+    const cols = generateColegios(DEFAULTS.vSmart, DEFAULTS.tiersSmart, DEFAULTS.vCore, DEFAULTS.tiersCore);
+    expect(cols.filter((c) => c.campaign === 'SMART')).toHaveLength(321);
+    expect(cols.filter((c) => c.campaign === 'CORE')).toHaveLength(1047);
+    expect(cols).toHaveLength(1368);
   });
 });
 
